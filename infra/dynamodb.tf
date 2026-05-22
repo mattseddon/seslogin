@@ -94,10 +94,6 @@ resource "aws_dynamodb_table" "prod_period" {
     type = "S"
   }
   attribute {
-    name = "location_id"
-    type = "S"
-  }
-  attribute {
     name = "person_id"
     type = "S"
   }
@@ -118,12 +114,6 @@ resource "aws_dynamodb_table" "prod_period" {
     type = "S"
   }
 
-  global_secondary_index {
-    name            = "location_id-start_time-index"
-    hash_key        = "location_id"
-    range_key       = "start_time"
-    projection_type = "ALL"
-  }
   global_secondary_index {
     name            = "person_id-start_time-index"
     hash_key        = "person_id"

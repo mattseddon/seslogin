@@ -81,20 +81,25 @@ No GSIs. Locations are always fetched by ID or via a full-table Scan (the table 
 | Attribute | Type | Role |
 |-----------|------|------|
 | `id` | S | Hash key (PK) — UUID |
-| `location_id` | S | GSI hash key |
+| `location_id` | S | Item data only (not a GSI key) |
 | `person_id` | S | GSI hash key |
 | `start_time` | N | GSI sort key |
 | `nitc_event_id` | S | GSI hash key |
+| `location_open` | S | Sparse GSI hash key — present only on open (no `end_time`), non-deleted periods; absent otherwise |
+| `location_live` | S | Sparse GSI hash key — present only on non-deleted periods; absent on deleted periods |
 
 **GSIs:**
 
 | GSI | Hash key | Sort key | Projection | Purpose |
 |-----|----------|----------|------------|---------|
-| `location_id-start_time-index` | `location_id` | `start_time` | ALL | List periods for a location, ordered by time; supports `BETWEEN` range filtering on the sort key |
+| `location_open-start_time-index` | `location_open` | `start_time` | ALL | List open non-deleted periods for a location (`onlyActive=true`). Sparse — only open periods are indexed |
+| `location_live-start_time-index` | `location_live` | `start_time` | ALL | List all non-deleted periods for a location (`onlyActive=false`). Sparse — deleted periods are excluded |
 | `person_id-start_time-index` | `person_id` | `start_time` | ALL | List periods for a person, ordered by time |
 | `nitc_event_id-index` | `nitc_event_id` | — | ALL | List all periods assigned to a given NITC event |
 
-The `start_time` sort key in the two location/person GSIs means DynamoDB returns results in ascending time order natively. Descending order requires `ScanIndexForward: false`. Time range filtering (`start_time BETWEEN :low AND :high`) uses `KeyConditionExpression` on the sort key — pushing the filter into the key condition is significantly more efficient than a `FilterExpression`, which would apply after reading all pages.
+The sparse location indexes (`location_open`, `location_live`) equal `location_id` when present and are REMOVED (not nulled) when a period closes or is deleted. DynamoDB only indexes items where the GSI hash key attribute exists, so the index contains exactly the periods of interest — no filter expression required. Both attributes are maintained by every write path (`start_period_for_person_location`, `create_period`, `end_period`, and all `update_period` variants).
+
+The `start_time` sort key across the location/person GSIs means DynamoDB returns results in ascending time order natively. Descending order requires `ScanIndexForward: false`. Time range filtering (`start_time BETWEEN :low AND :high`) uses `KeyConditionExpression` on the sort key — pushing the filter into the key condition is significantly more efficient than a `FilterExpression`, which would apply after reading all pages.
 
 `ALL` projection is used on every period GSI because period rows are frequently read in full (the calling resolver needs all fields). A `KEYS_ONLY` or custom projection would require a second `BatchGetItem` per result, trading read capacity for storage savings — not worthwhile given the access pattern.
 
@@ -295,7 +300,7 @@ Was: `REMOVE nitc_participant_id SET nitc_exported_version = :v`. Now: `REMOVE n
 
 The NITC export loop calls this once per location, and it issues a full `Scan` on the `period` table, applying `location_id = :loc ...` as a `FilterExpression`. DynamoDB's filter expression executes *after* reading every page of items — the consumed capacity and latency scale with the total number of periods in the table, not with the number of periods for that location. A table with 500k periods will read all 500k, discard most, and return the relevant handful.
 
-The fix is to use the `location_id-start_time-index` GSI with `KeyConditionExpression("location_id = :loc AND start_time >= :cutoff")`, then apply the remaining filters (`nitc_exported_version`, `end_time`, `deleted`) as a `FilterExpression` on the GSI query. This reduces the read to only the location's recent periods.
+The fix is to use the `location_live-start_time-index` GSI with `KeyConditionExpression("location_live = :loc AND start_time >= :cutoff")`, then apply the remaining filters (`nitc_exported_version`, `end_time`) as a `FilterExpression` on the GSI query. This reduces the read to only the location's recent non-deleted periods (deleted periods are absent from the sparse index).
 
 #### `get_person_ids_by_registration_number` and `get_person_ids_by_ses_api_person_id` — serial single-item queries
 
