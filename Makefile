@@ -46,3 +46,6 @@ sync-locations:
 
 do-sync-locations:
 	cd api && RUST_LOG=info cargo run --bin sync-locations -- --dry-run false
+
+load-nitc-tags:
+	cd api && RUST_LOG=info cargo run --bin load-nitc-tags --

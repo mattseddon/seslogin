@@ -185,12 +185,12 @@ impl<A: App + HasDb + Send + Sync + 'static> Category<A> {
     async fn nitc_participant_type(&self) -> Option<&String> {
         self.rec.nitc_participant_type.as_ref()
     }
-    async fn nitc_group(&self, ctx: &Context<'_>) -> Result<Option<NitcGroup>> {
+    async fn nitc_group(&self, ctx: &Context<'_>) -> Result<Option<NitcGroup<A>>> {
         let Some(ref gid) = self.rec.nitc_group_id else {
             return Ok(None);
         };
         let app = ctx.data_unchecked::<Arc<A>>();
-        Ok(app.db().get_nitc_group(gid).await?.map(NitcGroup))
+        Ok(app.db().get_nitc_group(gid).await?.map(NitcGroup::new))
     }
 }
 
@@ -1294,30 +1294,42 @@ impl SesNonIncidentTag {
     }
 }
 
-pub struct NitcGroup(pub db::NitcGroup);
+pub struct NitcGroup<A: App + HasDb + Send + Sync> {
+    _marker: std::marker::PhantomData<A>,
+    pub rec: db::NitcGroup,
+}
+
+impl<A: App + HasDb + Send + Sync> NitcGroup<A> {
+    pub fn new(rec: db::NitcGroup) -> Self {
+        Self {
+            _marker: Default::default(),
+            rec,
+        }
+    }
+}
 
 #[Object]
-impl NitcGroup {
+impl<A: App + HasDb + Send + Sync + 'static> NitcGroup<A> {
     async fn id(&self) -> &str {
-        &self.0.id
+        &self.rec.id
     }
 
     async fn nitc_type(&self) -> &str {
-        &self.0.nitc_type
+        &self.rec.nitc_type
     }
 
-    async fn ses_tags(&self) -> Result<Vec<SesNonIncidentTag>> {
-        let ses_client = make_ses_client()?;
-        let tag_map = ses_client.fetch_nonincident_tags_cached().await?;
-        let mut tags: Vec<SesNonIncidentTag> = self
-            .0
-            .nitc_tag_ids
-            .iter()
-            .filter_map(|id| tag_map.get(id))
+    async fn ses_tags(&self, ctx: &Context<'_>) -> Result<Vec<SesNonIncidentTag>> {
+        let app = ctx.data_unchecked::<Arc<A>>();
+        let tag_ids: std::collections::HashSet<i32> =
+            self.rec.nitc_tag_ids.iter().copied().collect();
+        let all_tags = app.db().list_nitc_tags().await?;
+        let mut tags: Vec<SesNonIncidentTag> = all_tags
+            .into_iter()
+            .filter(|t| tag_ids.contains(&t.id))
             .map(|t| SesNonIncidentTag {
                 id: t.id,
-                name: t.name.clone(),
-                primary_activity_name: t.primary_activity_name.clone(),
+                name: t.name,
+                primary_activity_name: t.primary_activity_name,
             })
             .collect();
         tags.sort_by_key(|t| t.id);
@@ -1551,10 +1563,10 @@ impl<A: App + HasDb + Send + Sync + 'static> QueryRoot<A> {
     }
 
     #[graphql(guard = "AuthGuard::new(AuthRequirement::SuperUser)")]
-    async fn nitc_groups(&self, ctx: &Context<'_>) -> Result<Vec<NitcGroup>> {
+    async fn nitc_groups(&self, ctx: &Context<'_>) -> Result<Vec<NitcGroup<A>>> {
         let app = ctx.data_unchecked::<Arc<A>>();
         let items = app.db().list_nitc_groups().await?;
-        Ok(items.into_iter().map(NitcGroup).collect())
+        Ok(items.into_iter().map(NitcGroup::new).collect())
     }
 
     #[graphql(guard = "AuthGuard::new(AuthRequirement::SuperUser)")]
@@ -1562,12 +1574,12 @@ impl<A: App + HasDb + Send + Sync + 'static> QueryRoot<A> {
         &self,
         ctx: &Context<'_>,
         #[graphql(desc = "ID for the NITC group to look up")] id: ID,
-    ) -> Result<NitcGroup> {
+    ) -> Result<NitcGroup<A>> {
         let app = ctx.data_unchecked::<Arc<A>>();
         app.db()
             .get_nitc_group(&id)
             .await?
-            .map(NitcGroup)
+            .map(NitcGroup::new)
             .ok_or_else(|| anyhow!("NitcGroup with ID {:?} not found", &id))
     }
 
@@ -1622,15 +1634,15 @@ impl<A: App + HasDb + Send + Sync + 'static> QueryRoot<A> {
         name = "ses_nonincident_tags",
         guard = "AuthGuard::new(AuthRequirement::SuperUser)"
     )]
-    async fn ses_nonincident_tags(&self) -> Result<Vec<SesNonIncidentTag>> {
-        let ses_client = make_ses_client()?;
-        let tags = ses_client.fetch_nonincident_tags_cached().await?;
+    async fn ses_nonincident_tags(&self, ctx: &Context<'_>) -> Result<Vec<SesNonIncidentTag>> {
+        let app = ctx.data_unchecked::<Arc<A>>();
+        let tags = app.db().list_nitc_tags().await?;
         let mut result: Vec<SesNonIncidentTag> = tags
-            .values()
+            .into_iter()
             .map(|t| SesNonIncidentTag {
                 id: t.id,
-                name: t.name.clone(),
-                primary_activity_name: t.primary_activity_name.clone(),
+                name: t.name,
+                primary_activity_name: t.primary_activity_name,
             })
             .collect();
         result.sort_by_key(|t| t.id);

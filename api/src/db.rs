@@ -277,6 +277,13 @@ impl HasID for Period {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct NitcTag {
+    pub id: i32,
+    pub name: String,
+    pub primary_activity_name: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PeriodUpdateShape<'a> {
     Fields {
@@ -554,6 +561,9 @@ pub trait Handler {
         nitc_tag_ids: &[i32],
     ) -> impl Future<Output = Result<()>> + Send;
     fn delete_nitc_group(&self, id: &str) -> impl Future<Output = Result<()>> + Send;
+
+    fn list_nitc_tags(&self) -> impl Future<Output = Result<Vec<NitcTag>>> + Send;
+    fn put_nitc_tag(&self, tag: &NitcTag) -> impl Future<Output = Result<()>> + Send;
 
     /// Atomically increment period.version and return the new value, to trigger NITC re-export.
     fn bump_period_version(&self, period_id: &str) -> impl Future<Output = Result<u64>> + Send;

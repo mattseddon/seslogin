@@ -363,6 +363,23 @@ impl TryInto<db::NitcGroup> for Item {
     }
 }
 
+impl TryInto<db::NitcTag> for Item {
+    type Error = HydrationError;
+    fn try_into(self) -> Result<db::NitcTag, Self::Error> {
+        let id = self
+            .id()
+            .parse::<i32>()
+            .map_err(|e| anyhow!("Invalid nitc_tag id: {}", e))?;
+        Ok(db::NitcTag {
+            id,
+            name: self.string_field("name")?.unwrap_or_default(),
+            primary_activity_name: self
+                .string_field("primary_activity_name")?
+                .unwrap_or_default(),
+        })
+    }
+}
+
 impl TryInto<db::TestPaginationRow> for Item {
     type Error = HydrationError;
     fn try_into(self) -> Result<db::TestPaginationRow, Self::Error> {
@@ -2566,6 +2583,49 @@ impl db::Handler for Handler {
             resp.consumed_capacity(),
             CapKind::Write,
         );
+        Ok(())
+    }
+
+    async fn list_nitc_tags(&self) -> db::Result<Vec<db::NitcTag>> {
+        let resp = self
+            .client
+            .scan()
+            .table_name(self.table_name("nitc_tag"))
+            .return_consumed_capacity(ReturnConsumedCapacity::Total)
+            .send()
+            .await
+            .map_err(|e| Error::Infrastructure(sdk_err_msg(e)))?;
+        record_capacity("list_nitc_tags", resp.consumed_capacity(), CapKind::Read);
+        if let Some(items) = resp.items {
+            items
+                .into_iter()
+                .map(|i| -> HydrationResult<db::NitcTag> { Item(i).try_into() })
+                .collect::<HydrationResult<Vec<db::NitcTag>>>()
+                .map_err(db::Error::from)
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    async fn put_nitc_tag(&self, tag: &db::NitcTag) -> db::Result<()> {
+        if self.read_only {
+            return Err(db::Error::MutationDisabled);
+        }
+        let resp = self
+            .client
+            .put_item()
+            .table_name(self.table_name("nitc_tag"))
+            .item("id", AttributeValue::S(tag.id.to_string()))
+            .item("name", AttributeValue::S(tag.name.clone()))
+            .item(
+                "primary_activity_name",
+                AttributeValue::S(tag.primary_activity_name.clone()),
+            )
+            .return_consumed_capacity(ReturnConsumedCapacity::Total)
+            .send()
+            .await
+            .map_err(|e| Error::Infrastructure(sdk_err_msg(e)))?;
+        record_capacity("put_nitc_tag", resp.consumed_capacity(), CapKind::Write);
         Ok(())
     }
 

@@ -330,6 +330,14 @@ impl db::Handler for Handler {
         Self::unsupported()
     }
 
+    async fn list_nitc_tags(&self) -> db::Result<Vec<db::NitcTag>> {
+        Ok(vec![])
+    }
+
+    async fn put_nitc_tag(&self, _tag: &db::NitcTag) -> db::Result<()> {
+        Ok(())
+    }
+
     async fn bump_period_version(&self, _period_id: &str) -> db::Result<u64> {
         Self::unsupported()
     }

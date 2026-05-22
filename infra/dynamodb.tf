@@ -294,6 +294,23 @@ resource "aws_dynamodb_table" "prod_nitc_group" {
   }
 }
 
+resource "aws_dynamodb_table" "prod_nitc_tag" {
+  name                        = "${var.db_prefix}_nitc_tag"
+  billing_mode                = "PAY_PER_REQUEST"
+  hash_key                    = "id"
+  deletion_protection_enabled = true
+
+  point_in_time_recovery {
+    enabled                 = true
+    recovery_period_in_days = 35
+  }
+
+  attribute {
+    name = "id"
+    type = "S"
+  }
+}
+
 resource "aws_dynamodb_table" "prod_nitc_event" {
   name                        = "${var.db_prefix}_nitc_event"
   billing_mode                = "PAY_PER_REQUEST"

@@ -790,14 +790,14 @@ impl<A: App + HasDb + HasSqs + Send + Sync + 'static> MutationRoot<A> {
         id: Option<String>,
         nitc_type: String,
         nitc_tag_ids: Vec<i32>,
-    ) -> Result<NitcGroup> {
+    ) -> Result<NitcGroup<A>> {
         let id_ref = id.as_deref().filter(|s| !s.is_empty());
         let rec = self
             .app
             .db()
             .create_nitc_group(id_ref, &nitc_type, &nitc_tag_ids)
             .await?;
-        Ok(NitcGroup(rec))
+        Ok(NitcGroup::new(rec))
     }
 
     #[graphql(guard = "AuthGuard::new(AuthRequirement::SuperUser)")]
@@ -806,7 +806,7 @@ impl<A: App + HasDb + HasSqs + Send + Sync + 'static> MutationRoot<A> {
         id: ID,
         nitc_type: String,
         nitc_tag_ids: Vec<i32>,
-    ) -> Result<NitcGroup> {
+    ) -> Result<NitcGroup<A>> {
         self.app
             .db()
             .update_nitc_group(&id, &nitc_type, &nitc_tag_ids)
@@ -817,7 +817,7 @@ impl<A: App + HasDb + HasSqs + Send + Sync + 'static> MutationRoot<A> {
             .get_nitc_group(&id)
             .await?
             .ok_or_else(|| anyhow!("NitcGroup with ID {:?} missing", &id))?;
-        Ok(NitcGroup(rec))
+        Ok(NitcGroup::new(rec))
     }
 
     #[graphql(guard = "AuthGuard::new(AuthRequirement::SuperUser)")]
