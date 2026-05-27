@@ -91,10 +91,14 @@ export default function AdminLoginPage({
     (async () => {
       try {
         if (!(await browserSupportsWebAuthnAutofill())) return;
-        const token = await loginWithPasskey({ useAutofill: true });
-        if (token && mountedRef.current) {
-          onNewTokenReceivedRef.current(token);
+        const result = await loginWithPasskey({ useAutofill: true });
+        if (!mountedRef.current) return;
+        if (result.status === "ok") {
+          onNewTokenReceivedRef.current(result.token);
+        } else if (result.status === "failed") {
+          setPasskeyError("Passkey login failed.");
         }
+        // "cancelled" → stay silent (user dismissed the autofill prompt).
       } catch (err) {
         // Conditional UI unsupported or aborted — ignore silently.
         console.warn("[passkey] autofill effect threw:", err);
@@ -111,10 +115,13 @@ export default function AdminLoginPage({
     setPasskeySigningIn(true);
     setPasskeyError(null);
     try {
-      const token = await loginWithPasskey({ useAutofill: false });
-      if (token) {
-        onNewTokenReceived(token);
+      const result = await loginWithPasskey({ useAutofill: false });
+      if (result.status === "ok") {
+        onNewTokenReceived(result.token);
+      } else if (result.status === "failed") {
+        setPasskeyError("Passkey login failed.");
       } else {
+        // "cancelled" — the user dismissed the prompt or has no passkey.
         setPasskeyError(
           "No passkey was used. Make sure you've added one, or sign in another way.",
         );

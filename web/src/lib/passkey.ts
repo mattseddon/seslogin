@@ -63,16 +63,27 @@ async function rawGraphQL(
 }
 
 /**
- * Attempt a discoverable (usernameless) passkey login.
- *
- * Returns an opaque session token on success, or null if the user has no
- * passkey, cancels the prompt, or verification fails. With `useAutofill`,
+ * Result of a passkey login attempt.
+ * - `ok`: authenticated, carries the session token.
+ * - `cancelled`: the user dismissed/aborted the prompt (or autofill was
+ *   superseded). Callers should stay silent — this isn't an error.
+ * - `failed`: a real failure (challenge couldn't be issued, or the server
+ *   rejected the assertion, e.g. the credential was deleted/unknown). Callers
+ *   should surface a generic error.
+ */
+export type PasskeyLoginResult =
+  | { status: "ok"; token: string }
+  | { status: "cancelled" }
+  | { status: "failed" };
+
+/**
+ * Attempt a discoverable (usernameless) passkey login. With `useAutofill`,
  * the browser surfaces saved passkeys inline on the email field (conditional
  * UI) rather than showing a modal.
  */
 export async function loginWithPasskey(opts?: {
   useAutofill?: boolean;
-}): Promise<string | null> {
+}): Promise<PasskeyLoginResult> {
   const useAutofill = opts?.useAutofill ?? false;
 
   const beginResp = (await rawGraphQL(
@@ -92,7 +103,7 @@ export async function loginWithPasskey(opts?: {
       "[passkey] beginPasskeyLogin returned no challenge",
       beginResp,
     );
-    return null;
+    return { status: "failed" };
   }
 
   const optionsJSON = JSON.parse(challenge.optionsJson);
@@ -106,7 +117,7 @@ export async function loginWithPasskey(opts?: {
   } catch (err) {
     // User cancelled, no matching credential, or an aborted autofill request.
     console.warn("[passkey] startAuthentication threw/aborted:", err);
-    return null;
+    return { status: "cancelled" };
   }
 
   const finishResp = (await rawGraphQL(
@@ -122,11 +133,13 @@ export async function loginWithPasskey(opts?: {
   const token = finishResp?.data?.finishPasskeyLogin ?? null;
   if (token) {
     sessionStorage.setItem(PASSKEY_LOGIN_FLAG, "1");
-  } else {
-    console.warn(
-      "[passkey] finishPasskeyLogin returned no token (verification failed or unknown credential)",
-      finishResp,
-    );
+    return { status: "ok", token };
   }
-  return token;
+  // The assertion was produced but the server didn't issue a token — e.g. the
+  // credential was deleted server-side, or verification failed.
+  console.warn(
+    "[passkey] finishPasskeyLogin returned no token (verification failed or unknown credential)",
+    finishResp,
+  );
+  return { status: "failed" };
 }
