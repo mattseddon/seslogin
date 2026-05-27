@@ -8,12 +8,12 @@ function formatClientVersion(version: string): string {
   return normalized;
 }
 
-export default function ClientVersionLabel() {
+export default function ClientVersionLabel({ noLink }: { noLink?: boolean }) {
   const currentVersion = getCurrentClientVersion();
   const normalized = currentVersion.trim();
   const displayVersion = formatClientVersion(currentVersion);
 
-  if (/^[0-9a-f]{40}$/i.test(normalized)) {
+  if (!noLink && /^[0-9a-f]{40}$/i.test(normalized)) {
     return (
       <a
         className="client-version"

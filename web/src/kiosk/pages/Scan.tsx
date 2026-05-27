@@ -20,7 +20,7 @@ export default function Scan() {
         />
       </div>
       <div id="scan-version">
-        <ClientVersionLabel />
+        <ClientVersionLabel noLink />
       </div>
     </div>
   );

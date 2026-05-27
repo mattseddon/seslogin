@@ -50,7 +50,7 @@ export default function StatusCurrentDisplay({ periods }: Props) {
         {periods.length} member{periods.length !== 1 ? "s" : ""} signed in
       </div>
       <div className="status-version">
-        <ClientVersionLabel />
+        <ClientVersionLabel noLink />
       </div>
     </div>
   );
