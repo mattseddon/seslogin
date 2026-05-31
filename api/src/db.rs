@@ -239,6 +239,8 @@ pub struct Period {
     pub category_id: Option<String>,
     pub start_time: u64,
     pub end_time: Option<u64>,
+    pub signed_in_session_id: Option<String>,
+    pub signed_out_session_id: Option<String>,
     pub version: u64,
     pub nitc_event_id: Option<String>,
     pub nitc_participant_id: Option<i64>,
@@ -297,6 +299,7 @@ pub enum PeriodUpdateShape<'a> {
         start_time: i64,
         end_time: i64,
         category_id: &'a str,
+        signed_out_session_id: Option<&'a str>,
     },
     Delete,
 }
@@ -473,6 +476,7 @@ pub trait Handler {
         &self,
         person_id: &str,
         location_id: &str,
+        signed_in_session_id: &str,
     ) -> impl Future<Output = Result<Period>> + Send;
     fn create_person(
         &self,

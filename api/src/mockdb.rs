@@ -129,6 +129,7 @@ impl db::Handler for Handler {
         &self,
         _person_id: &str,
         _location_id: &str,
+        _signed_in_session_id: &str,
     ) -> db::Result<Period> {
         Self::unsupported()
     }

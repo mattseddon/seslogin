@@ -204,6 +204,18 @@ type Period {
 	category: Category
 	startTime: Int!
 	endTime: Int
+	signedInSessionId: ID
+	"""
+	The kiosk session that signed this period in, if recorded. `None` for
+	periods with no recorded sign-in session (older or admin-created periods).
+	"""
+	signedInSession: Session
+	signedOutSessionId: ID
+	"""
+	The kiosk session that signed this period out, if recorded. `None` for
+	periods that are still open or were signed out/edited by an admin.
+	"""
+	signedOutSession: Session
 	nitcEventId: String
 	nitcExportStatus: NitcExportStatus
 }

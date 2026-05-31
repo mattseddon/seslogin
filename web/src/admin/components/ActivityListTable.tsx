@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { formatTime, formatTimeDiff } from "../../lib/time";
 import { graphql, readInlineData } from "relay-runtime";
 import { useMutation } from "react-relay";
@@ -25,12 +26,27 @@ const activityListTablePeriod = graphql`
     endTime
     nitcExportStatus
     nitcEventId
+    signedInSession {
+      id
+      name
+    }
+    signedOutSession {
+      id
+      name
+    }
     category {
       id
       name
     }
   }
 `;
+
+// Dotted underline hint shown on a sign-in/out time when a session name is
+// available in its `title` tooltip, signalling there's more to see on hover.
+const sessionHintStyle: CSSProperties = {
+  textDecoration: "underline dotted",
+  cursor: "help",
+};
 
 type Period = ActivityListTable_period$data;
 // Each row keeps the original fragment ref (passed to the page's getRowLabel) alongside
@@ -164,8 +180,18 @@ function Row<T extends ActivityListTable_period$key>({
           </td>
         )}
         <td>{getRowLabel(entry.ref)}</td>
-        <td>{formatTime(start)}</td>
-        <td>{end ? formatTime(end) : ""}</td>
+        <td
+          title={period.signedInSession?.name ?? undefined}
+          style={period.signedInSession ? sessionHintStyle : undefined}
+        >
+          {formatTime(start)}
+        </td>
+        <td
+          title={period.signedOutSession?.name ?? undefined}
+          style={period.signedOutSession ? sessionHintStyle : undefined}
+        >
+          {end ? formatTime(end) : ""}
+        </td>
         <td>{timeDiff}</td>
         <td>{period.category?.name}</td>
         <td className="options">

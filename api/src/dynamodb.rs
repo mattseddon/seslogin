@@ -400,6 +400,8 @@ impl TryInto<Period> for Item {
                 .ok_or_else(|| anyhow!("Period missing start_time"))?
                 as u64,
             end_time: self.i64_field("end_time")?.map(|i| i as u64),
+            signed_in_session_id: self.string_field("signed_in_session_id")?,
+            signed_out_session_id: self.string_field("signed_out_session_id")?,
             version: self.i64_field("v")?.unwrap_or(1) as u64,
             nitc_event_id: self.string_field("nitc_event_id")?,
             nitc_participant_id: self.i64_field("nitc_participant_id")?,
@@ -1388,6 +1390,7 @@ impl db::Handler for Handler {
         &self,
         person_id: &str,
         location_id: &str,
+        signed_in_session_id: &str,
     ) -> db::Result<Period> {
         if self.read_only {
             return Err(db::Error::MutationDisabled);
@@ -1406,6 +1409,10 @@ impl db::Handler for Handler {
             .item("person_id", AttributeValue::S(person_id.to_string()))
             .item("location_id", AttributeValue::S(location_id.to_string()))
             .item("start_time", AttributeValue::N(unix_time.to_string()))
+            .item(
+                "signed_in_session_id",
+                AttributeValue::S(signed_in_session_id.to_string()),
+            )
             .item("location_open", AttributeValue::S(location_id.to_string()))
             .item("location_live", AttributeValue::S(location_id.to_string()))
             .item("v", AttributeValue::N("1".to_string()))
@@ -1426,6 +1433,8 @@ impl db::Handler for Handler {
             category_id: None,
             start_time: unix_time,
             end_time: None,
+            signed_in_session_id: Some(signed_in_session_id.to_string()),
+            signed_out_session_id: None,
             version: 1,
             nitc_event_id: None,
             nitc_participant_id: None,
@@ -1623,6 +1632,8 @@ impl db::Handler for Handler {
             category_id: Some(category_id.to_string()),
             start_time,
             end_time: Some(end_time),
+            signed_in_session_id: None,
+            signed_out_session_id: None,
             version: 1,
             nitc_event_id: None,
             nitc_participant_id: None,
@@ -1665,19 +1676,40 @@ impl db::Handler for Handler {
                 start_time,
                 end_time,
                 category_id,
+                signed_out_session_id,
             } => {
-                let resp = self.client
+                let set_expr = if signed_out_session_id.is_some() {
+                    "SET start_time = :start_time, end_time = :end_time, category_id = :category_id, signed_out_session_id = :signed_out_session_id REMOVE location_open ADD v :one"
+                } else {
+                    "SET start_time = :start_time, end_time = :end_time, category_id = :category_id REMOVE location_open ADD v :one"
+                };
+                let mut update = self
+                    .client
                     .update_item()
                     .table_name(self.table_name("period"))
                     .key("id", AttributeValue::S(id.to_string()))
                     .condition_expression("attribute_exists(id)")
-                    .update_expression(
-                        "SET start_time = :start_time, end_time = :end_time, category_id = :category_id REMOVE location_open ADD v :one",
+                    .update_expression(set_expr)
+                    .expression_attribute_values(
+                        ":start_time",
+                        AttributeValue::N(start_time.to_string()),
                     )
-                    .expression_attribute_values(":start_time", AttributeValue::N(start_time.to_string()))
-                    .expression_attribute_values(":end_time", AttributeValue::N(end_time.to_string()))
-                    .expression_attribute_values(":category_id", AttributeValue::S(category_id.to_string()))
-                    .expression_attribute_values(":one", AttributeValue::N("1".to_string()))
+                    .expression_attribute_values(
+                        ":end_time",
+                        AttributeValue::N(end_time.to_string()),
+                    )
+                    .expression_attribute_values(
+                        ":category_id",
+                        AttributeValue::S(category_id.to_string()),
+                    )
+                    .expression_attribute_values(":one", AttributeValue::N("1".to_string()));
+                if let Some(session_id) = signed_out_session_id {
+                    update = update.expression_attribute_values(
+                        ":signed_out_session_id",
+                        AttributeValue::S(session_id.to_string()),
+                    );
+                }
+                let resp = update
                     .return_consumed_capacity(ReturnConsumedCapacity::Total)
                     .send()
                     .await

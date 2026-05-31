@@ -108,6 +108,8 @@ The `start_time` sort key across the location/person GSIs means DynamoDB returns
 - `nitc_event_id` (S) — absent until Phase 1 assigns the period
 - `nitc_participant_id` (N) — absent until Phase 2 exports the period
 - `nitc_exported_version` (N) — absent means never exported
+- `signed_in_session_id` (S) — kiosk session that signed the period in; absent for admin-created periods
+- `signed_out_session_id` (S) — kiosk session that signed the period out; absent until a kiosk sign-out (admin edits leave it untouched)
 - `deleted` (Bool)
 
 ---

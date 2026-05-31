@@ -641,6 +641,8 @@ impl<A: App + HasDb + HasSqs + Send + Sync + 'static> MutationRoot<A> {
                     start_time,
                     end_time,
                     category_id: &category_id,
+                    // Admin edit, not a kiosk sign-out: leave the session reference untouched.
+                    signed_out_session_id: None,
                 },
             )
             .await?;
@@ -1026,8 +1028,8 @@ impl<A: App + HasDb + HasSqs + Send + Sync + 'static> MutationRoot<A> {
     ) -> Result<RegisterResult<A>> {
         require_writable(ctx)?;
         let auth = ctx.data_opt::<AuthInfo>();
-        let location_id = match auth {
-            Some(AuthInfo::Session { location, .. }) => location,
+        let (session_id, location_id) = match auth {
+            Some(AuthInfo::Session { id, location }) => (id, location),
             _ => {
                 return Err(anyhow!("Cannot call scan_register2 without session auth"));
             }
@@ -1075,7 +1077,7 @@ impl<A: App + HasDb + HasSqs + Send + Sync + 'static> MutationRoot<A> {
             let rec = self
                 .app
                 .db()
-                .start_period_for_person_location(&person_id, location_id)
+                .start_period_for_person_location(&person_id, location_id, session_id)
                 .await?;
 
             Ok(RegisterResult {
@@ -1098,6 +1100,10 @@ impl<A: App + HasDb + HasSqs + Send + Sync + 'static> MutationRoot<A> {
         if start_time >= end_time {
             return Err(anyhow!("start_time must be before end_time"));
         }
+        let session_id = match ctx.data_opt::<AuthInfo>() {
+            Some(AuthInfo::Session { id, .. }) => id.clone(),
+            _ => return Err(anyhow!("Cannot call scan_sign_out without session auth")),
+        };
         let rec = self.app.db().get_periods(&[&id]).await?;
         let mut rec = rec
             .into_iter()
@@ -1121,12 +1127,14 @@ impl<A: App + HasDb + HasSqs + Send + Sync + 'static> MutationRoot<A> {
                     start_time,
                     end_time,
                     category_id: &category_id,
+                    signed_out_session_id: Some(&session_id),
                 },
             )
             .await?;
         rec.start_time = start_time as u64;
         rec.end_time = Some(end_time as u64);
         rec.category_id = Some(category_id.to_string());
+        rec.signed_out_session_id = Some(session_id);
 
         enqueue_nitc_export(&self.app.sqs().nitc_export, &rec.id).await;
         Ok(Period::new(rec))

@@ -9,8 +9,8 @@ use crate::app::HasDb;
 use crate::db;
 use crate::db::Handler;
 
-use super::query::{Category, Location, Person, User};
-use super::{CategoryId, LocationId, NitcEventId, PersonId, UserId};
+use super::query::{Category, Location, Person, Session, User};
+use super::{CategoryId, LocationId, NitcEventId, PersonId, SessionId, UserId};
 
 pub struct DatabaseLoader<A: App + HasDb + Send + Sync> {
     app: Arc<A>,
@@ -105,6 +105,28 @@ impl<A: App + HasDb + Send + Sync + 'static> Loader<UserId> for DatabaseLoader<A
             .map_err(|e| Arc::new(anyhow!("DB error: {:?}", e)))?;
         let map: HashMap<_, _> = zip(keys.iter().cloned(), recs)
             .map(|(key, rec)| (key, rec.map(User::new)))
+            .collect();
+        Ok(map)
+    }
+}
+
+impl<A: App + HasDb + Send + Sync + 'static> Loader<SessionId> for DatabaseLoader<A> {
+    type Value = Option<Session<A>>;
+    type Error = Arc<anyhow::Error>;
+
+    async fn load(
+        &self,
+        keys: &[SessionId],
+    ) -> std::result::Result<HashMap<SessionId, Option<Session<A>>>, Arc<anyhow::Error>> {
+        let str_keys = keys.iter().map(|k| &k.0.0).collect::<Vec<&String>>();
+        let recs = self
+            .app
+            .db()
+            .get_sessions(&str_keys)
+            .await
+            .map_err(|e| Arc::new(anyhow!("DB error: {:?}", e)))?;
+        let map: HashMap<_, _> = zip(keys.iter().cloned(), recs)
+            .map(|(key, rec)| (key, rec.map(Session::new)))
             .collect();
         Ok(map)
     }

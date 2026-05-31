@@ -26,7 +26,7 @@ use crate::ses_api;
 
 use super::auth::{AuthGuard, AuthRequirement, require_location_access};
 use super::dataloader::DatabaseLoader;
-use super::{CategoryId, LocationId, NitcEventId, PersonId, UserId};
+use super::{CategoryId, LocationId, NitcEventId, PersonId, SessionId, UserId};
 
 #[derive(Debug, PartialEq)]
 pub struct User<A: App + HasDb + Send + Sync> {
@@ -357,6 +357,26 @@ impl<A: App + HasDb + Send + Sync> Period<A> {
     }
 }
 
+/// Load a session by its optional id via the DataLoader. Returns `None` when no
+/// session id was recorded on the period (e.g. older periods, or admin-created
+/// or admin-edited periods that have no kiosk session). Deleted sessions are
+/// soft-deleted and still resolve, so a recorded id normally hydrates fine; the
+/// final `flatten()` is just defensive against a genuinely missing row.
+async fn load_optional_session<A: App + HasDb + Send + Sync + 'static>(
+    ctx: &Context<'_>,
+    session_id: &Option<String>,
+) -> Result<Option<Session<A>>> {
+    let Some(session_id) = session_id else {
+        return Ok(None);
+    };
+    let loader = ctx.data_unchecked::<DataLoader<DatabaseLoader<A>>>();
+    Ok(loader
+        .load_one(SessionId(ID(session_id.clone())))
+        .await
+        .map_err(|e| anyhow!("Failed to load session via DataLoader: {}", e))?
+        .flatten())
+}
+
 #[Object]
 impl<A: App + HasDb + Send + Sync> Period<A> {
     async fn id(&self) -> ID {
@@ -418,6 +438,26 @@ impl<A: App + HasDb + Send + Sync> Period<A> {
 
     async fn end_time(&self) -> Option<i64> {
         self.rec.end_time.map(|i| i as i64)
+    }
+
+    async fn signed_in_session_id(&self) -> Option<ID> {
+        self.rec.signed_in_session_id.clone().map(ID)
+    }
+
+    /// The kiosk session that signed this period in, if recorded. `None` for
+    /// periods with no recorded sign-in session (older or admin-created periods).
+    async fn signed_in_session(&self, ctx: &Context<'_>) -> Result<Option<Session<A>>> {
+        load_optional_session(ctx, &self.rec.signed_in_session_id).await
+    }
+
+    async fn signed_out_session_id(&self) -> Option<ID> {
+        self.rec.signed_out_session_id.clone().map(ID)
+    }
+
+    /// The kiosk session that signed this period out, if recorded. `None` for
+    /// periods that are still open or were signed out/edited by an admin.
+    async fn signed_out_session(&self, ctx: &Context<'_>) -> Result<Option<Session<A>>> {
+        load_optional_session(ctx, &self.rec.signed_out_session_id).await
     }
 
     async fn nitc_event_id(&self, ctx: &Context<'_>) -> Result<Option<String>> {

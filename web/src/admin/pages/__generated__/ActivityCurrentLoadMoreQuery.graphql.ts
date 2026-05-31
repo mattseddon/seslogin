@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5a2bec277c1cdac94db5d108da158914>>
+ * @generated SignedSource<<68523a2933aca04cfbd8476cb98ac041>>
  * @lightSyntaxTransform
  * @nogrep
  */
@@ -111,26 +111,47 @@ v9 = {
   "name": "nitcEventId",
   "storageKey": null
 },
-v10 = {
+v10 = [
+  (v4/*: any*/),
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "name",
+    "storageKey": null
+  }
+],
+v11 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Session",
+  "kind": "LinkedField",
+  "name": "signedInSession",
+  "plural": false,
+  "selections": (v10/*: any*/),
+  "storageKey": null
+},
+v12 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Session",
+  "kind": "LinkedField",
+  "name": "signedOutSession",
+  "plural": false,
+  "selections": (v10/*: any*/),
+  "storageKey": null
+},
+v13 = {
   "alias": null,
   "args": null,
   "concreteType": "Category",
   "kind": "LinkedField",
   "name": "category",
   "plural": false,
-  "selections": [
-    (v4/*: any*/),
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "name",
-      "storageKey": null
-    }
-  ],
+  "selections": (v10/*: any*/),
   "storageKey": null
 },
-v11 = {
+v14 = {
   "alias": null,
   "args": null,
   "concreteType": "Person",
@@ -156,7 +177,7 @@ v11 = {
   ],
   "storageKey": null
 },
-v12 = {
+v15 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -234,7 +255,9 @@ return {
                           (v7/*: any*/),
                           (v8/*: any*/),
                           (v9/*: any*/),
-                          (v10/*: any*/)
+                          (v11/*: any*/),
+                          (v12/*: any*/),
+                          (v13/*: any*/)
                         ],
                         "args": null,
                         "argumentDefinitions": []
@@ -243,7 +266,7 @@ return {
                         "kind": "InlineDataFragmentSpread",
                         "name": "ActivityCurrent_periodName",
                         "selections": [
-                          (v11/*: any*/)
+                          (v14/*: any*/)
                         ],
                         "args": null,
                         "argumentDefinitions": []
@@ -254,7 +277,7 @@ return {
                 ],
                 "storageKey": null
               },
-              (v12/*: any*/)
+              (v15/*: any*/)
             ],
             "storageKey": null
           }
@@ -313,15 +336,17 @@ return {
                       (v7/*: any*/),
                       (v8/*: any*/),
                       (v9/*: any*/),
-                      (v10/*: any*/),
-                      (v11/*: any*/)
+                      (v11/*: any*/),
+                      (v12/*: any*/),
+                      (v13/*: any*/),
+                      (v14/*: any*/)
                     ],
                     "storageKey": null
                   }
                 ],
                 "storageKey": null
               },
-              (v12/*: any*/)
+              (v15/*: any*/)
             ],
             "storageKey": null
           }
@@ -331,12 +356,12 @@ return {
     ]
   },
   "params": {
-    "cacheID": "5baabb6b19d89ffd5ef3b128159473a0",
+    "cacheID": "518d4ac1bcc5490586e0f3473f909df8",
     "id": null,
     "metadata": {},
     "name": "ActivityCurrentLoadMoreQuery",
     "operationKind": "query",
-    "text": "query ActivityCurrentLoadMoreQuery(\n  $location: ID!\n  $first: Int!\n  $after: String\n) {\n  location(id: $location) {\n    id\n    periods(onlyActive: true, first: $first, after: $after) {\n      edges {\n        node {\n          ...ActivityListTable_period\n          ...ActivityCurrent_periodName\n          id\n        }\n      }\n      pageInfo {\n        hasNextPage\n        endCursor\n      }\n    }\n  }\n}\n\nfragment ActivityCurrent_periodName on Period {\n  person {\n    id\n    firstName\n    lastName\n  }\n}\n\nfragment ActivityListTable_period on Period {\n  id\n  startTime\n  endTime\n  nitcExportStatus\n  nitcEventId\n  category {\n    id\n    name\n  }\n}\n"
+    "text": "query ActivityCurrentLoadMoreQuery(\n  $location: ID!\n  $first: Int!\n  $after: String\n) {\n  location(id: $location) {\n    id\n    periods(onlyActive: true, first: $first, after: $after) {\n      edges {\n        node {\n          ...ActivityListTable_period\n          ...ActivityCurrent_periodName\n          id\n        }\n      }\n      pageInfo {\n        hasNextPage\n        endCursor\n      }\n    }\n  }\n}\n\nfragment ActivityCurrent_periodName on Period {\n  person {\n    id\n    firstName\n    lastName\n  }\n}\n\nfragment ActivityListTable_period on Period {\n  id\n  startTime\n  endTime\n  nitcExportStatus\n  nitcEventId\n  signedInSession {\n    id\n    name\n  }\n  signedOutSession {\n    id\n    name\n  }\n  category {\n    id\n    name\n  }\n}\n"
   }
 };
 })();

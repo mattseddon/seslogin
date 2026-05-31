@@ -96,6 +96,12 @@ export default function Reports() {
                         personId
                         startTime
                         endTime
+                        signedInSession {
+                          name
+                        }
+                        signedOutSession {
+                          name
+                        }
                         category {
                           id
                           name
@@ -150,7 +156,9 @@ export default function Reports() {
         "Name",
         "Category Name",
         "Start Time",
+        "Sign-In Session",
         "End Time",
+        "Sign-Out Session",
         "Duration",
       ];
       const startPart = startInput.replaceAll(":", "-");
@@ -172,7 +180,9 @@ export default function Reports() {
             `${period.person.firstName} ${period.person.lastName}`.trim(),
             period.category?.name || "",
             startDate.toISOString(),
+            period.signedInSession?.name || "",
             endDate ? endDate.toISOString() : "",
+            period.signedOutSession?.name || "",
             formatDuration(durationSeconds),
           ];
           lines.push(row.map(csvEscape).join(","));
@@ -209,7 +219,9 @@ export default function Reports() {
               `${period.person.firstName} ${period.person.lastName}`.trim(),
               period.category?.name || "",
               startDate,
+              period.signedInSession?.name || "",
               endDate,
+              period.signedOutSession?.name || "",
               durationDays,
             ];
           },
@@ -226,8 +238,8 @@ export default function Reports() {
 
         for (let rowIndex = 2; rowIndex <= rows.length + 1; rowIndex++) {
           worksheet.getCell(rowIndex, 5).numFmt = "yyyy-mm-dd hh:mm:ss";
-          worksheet.getCell(rowIndex, 6).numFmt = "yyyy-mm-dd hh:mm:ss";
-          worksheet.getCell(rowIndex, 7).numFmt = "[h]:mm:ss";
+          worksheet.getCell(rowIndex, 7).numFmt = "yyyy-mm-dd hh:mm:ss";
+          worksheet.getCell(rowIndex, 9).numFmt = "[h]:mm:ss";
         }
 
         const buffer = await workbook.xlsx.writeBuffer();
