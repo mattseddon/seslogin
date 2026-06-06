@@ -106,6 +106,15 @@ pub async fn run(db: &impl db::Handler, args: SummaryArgs) -> Result<()> {
             continue;
         }
 
+        // Skip sending entirely if none of this user's locations had any activity.
+        if locations_data.iter().all(|ld| ld.periods.is_empty()) {
+            info!(
+                "No activity for any location of user {}, skipping email",
+                user.id
+            );
+            continue;
+        }
+
         // Batch-load persons and categories.
         all_person_ids.sort_unstable();
         all_person_ids.dedup();
@@ -217,7 +226,7 @@ fn build_summary_html(
     categories: &HashMap<String, db::Category>,
     _start_ts: u64,
     _end_ts: u64,
-    report_ts: u64,
+    _report_ts: u64,
 ) -> String {
     let mut html = format!(
         r#"<!DOCTYPE html>
@@ -245,16 +254,24 @@ fn build_summary_html(
         html.push_str(&format!(
             "<thead><tr style=\"background:#f3f4f6\">{}{}{}{}</tr></thead><tbody>\n",
             th("Member"),
-            th("Sign In"),
-            th("Sign Out"),
+            th("In"),
+            th("Out"),
             th("Category")
         ));
 
         for (i, period) in loc.periods.iter().enumerate() {
-            let person_name = persons
-                .get(&period.person_id)
+            let person = persons.get(&period.person_id);
+            let person_name = person
                 .map(|p| format!("{} {}", p.first_name, p.last_name))
                 .unwrap_or_else(|| "Unknown".to_string());
+            let member_cell = match person.and_then(|p| p.registration_number.as_deref()) {
+                Some(reg) => format!(
+                    "{}<br><span style=\"font-size:11px;color:#6b7280\">{}</span>",
+                    escape_html(&person_name),
+                    escape_html(reg)
+                ),
+                None => escape_html(&person_name),
+            };
             let sign_in = format_time(period.start_time);
             let sign_out = match period.end_time {
                 Some(t) => format_time(t),
@@ -270,7 +287,7 @@ fn build_summary_html(
             let row_bg = if i % 2 == 0 { "#fff" } else { "#f9fafb" };
             html.push_str(&format!(
                 "<tr style=\"background:{bg}\">{}{}{}{}</tr>\n",
-                td(&escape_html(&person_name)),
+                td(&member_cell),
                 td(&sign_in),
                 td(&sign_out),
                 td(&escape_html(&category)),
@@ -282,8 +299,11 @@ fn build_summary_html(
         // --- Category summary ---
         let mut cat_hours: HashMap<String, f64> = HashMap::new();
         for period in loc.periods {
-            let effective_end = period.end_time.unwrap_or(report_ts);
-            let hours = duration_hours(period.start_time, effective_end);
+            // Only count periods that have been signed out.
+            let Some(end_time) = period.end_time else {
+                continue;
+            };
+            let hours = duration_hours(period.start_time, end_time);
             let label = period
                 .category_id
                 .as_ref()
@@ -316,8 +336,11 @@ fn build_summary_html(
         // --- Member summary ---
         let mut member_hours: HashMap<String, (String, f64)> = HashMap::new();
         for period in loc.periods {
-            let effective_end = period.end_time.unwrap_or(report_ts);
-            let hours = duration_hours(period.start_time, effective_end);
+            // Only count periods that have been signed out.
+            let Some(end_time) = period.end_time else {
+                continue;
+            };
+            let hours = duration_hours(period.start_time, end_time);
             let entry = member_hours
                 .entry(period.person_id.clone())
                 .or_insert_with(|| {
