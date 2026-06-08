@@ -1,6 +1,9 @@
 use async_graphql::ID;
 use async_graphql::dataloader::DataLoader;
-use async_graphql::{EmptySubscription, Schema};
+use async_graphql::extensions::{
+    Extension, ExtensionContext, ExtensionFactory, NextResolve, ResolveInfo,
+};
+use async_graphql::{EmptySubscription, Schema, ServerError, ServerResult, Value};
 use std::sync::Arc;
 
 use crate::app::App;
@@ -44,19 +47,64 @@ pub struct CategoryId(pub ID);
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NitcEventId(pub String);
 
+/// TESTING ONLY: when true, every mutation field fails with an error before it
+/// runs, so the frontend's mutation error handling can be exercised end to end.
+/// Set back to `false` before committing.
+const FORCE_MUTATION_ERRORS: bool = false;
+
+/// Extension that makes every top-level mutation field return an error. Gated by
+/// [`FORCE_MUTATION_ERRORS`] and only registered when that const is `true`.
+struct ForceMutationErrors;
+
+impl ExtensionFactory for ForceMutationErrors {
+    fn create(&self) -> Arc<dyn Extension> {
+        Arc::new(ForceMutationErrorsExt)
+    }
+}
+
+struct ForceMutationErrorsExt;
+
+#[async_graphql::async_trait::async_trait]
+impl Extension for ForceMutationErrorsExt {
+    async fn resolve(
+        &self,
+        ctx: &ExtensionContext<'_>,
+        info: ResolveInfo<'_>,
+        next: NextResolve<'_>,
+    ) -> ServerResult<Option<Value>> {
+        // Only fail the top-level mutation fields (whose parent is the mutation
+        // root type), not the nested fields of any returned object.
+        if info.parent_type == "MutationRoot" {
+            return Err(ServerError::new(
+                format!(
+                    "Forced test error: mutation `{}` was rejected (FORCE_MUTATION_ERRORS is enabled)",
+                    info.name
+                ),
+                None,
+            ));
+        }
+        next.run(ctx, info).await
+    }
+}
+
 pub fn build_schema<A: App + HasDb + HasSqs + Send + Sync + 'static>(
     app: Arc<A>,
     webauthn: Arc<webauthn_rs::prelude::Webauthn>,
 ) -> Schema<QueryRoot<A>, MutationRoot<A>, EmptySubscription> {
-    Schema::build(
+    let mut builder = Schema::build(
         QueryRoot::new(),
         // TODO: stop passing app into MutationRoot, use .data()
         MutationRoot { app: app.clone() },
         EmptySubscription,
     )
     .data(app.clone())
-    .data(webauthn)
-    .finish()
+    .data(webauthn);
+
+    if FORCE_MUTATION_ERRORS {
+        builder = builder.extension(ForceMutationErrors);
+    }
+
+    builder.finish()
 }
 
 pub fn get_dataloader<A: App + HasDb + HasSqs + Send + Sync + 'static>(
