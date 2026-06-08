@@ -11,9 +11,11 @@ import type { UserListToggleMutation } from "./__generated__/UserListToggleMutat
 import type { UserList_user$key } from "./__generated__/UserList_user.graphql";
 import { formatTimeDiff } from "../../lib/time";
 import { useUserInfo } from "../components/useUserInfo";
+import { useNotify } from "../components/useNotify";
 
 function Row(props: { user: UserList_user$key; idx: number; isDev: boolean }) {
   const isDev = props.isDev;
+  const { notifyError } = useNotify();
   const user = useFragment<UserList_user$key>(
     graphql`
       fragment UserList_user on User {
@@ -63,23 +65,27 @@ function Row(props: { user: UserList_user$key; idx: number; isDev: boolean }) {
       `Are you sure you want to ${action} user ${user.email}?`,
     );
     if (yes) {
-      await new Promise((resolve, reject) => {
-        commitMutation({
-          variables: {
-            id: user.id,
-            email: user.email,
-            isSuper: user.isSuper,
-            isDev: user.isDev,
-            locationGrants: [...user.locationGrantIds],
-            enabled: !user.enabled,
-          },
-          onCompleted: resolve,
-          onError: reject,
-          updater: (store) => {
-            store.invalidateStore();
-          },
+      try {
+        await new Promise((resolve, reject) => {
+          commitMutation({
+            variables: {
+              id: user.id,
+              email: user.email,
+              isSuper: user.isSuper,
+              isDev: user.isDev,
+              locationGrants: [...user.locationGrantIds],
+              enabled: !user.enabled,
+            },
+            onCompleted: resolve,
+            onError: reject,
+            updater: (store) => {
+              store.invalidateStore();
+            },
+          });
         });
-      });
+      } catch (err) {
+        notifyError(err, `Couldn't ${action} user ${user.email}`);
+      }
     }
   }
 

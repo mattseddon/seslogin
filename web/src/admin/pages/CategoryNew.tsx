@@ -2,8 +2,10 @@ import { useNavigate } from "react-router";
 import { graphql, useLazyLoadQuery, useMutation } from "react-relay";
 import type { CategoryNewQuery } from "./__generated__/CategoryNewQuery.graphql";
 import type { CategoryNewMutation } from "./__generated__/CategoryNewMutation.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function CategoryNew() {
+  const { notifyError } = useNotify();
   const [commitMutation, isMutationInFlight] = useMutation<CategoryNewMutation>(
     graphql`
       mutation CategoryNewMutation(
@@ -43,16 +45,21 @@ export default function CategoryNew() {
     const nitcParticipantType =
       formData.get("nitcParticipantType")?.toString() || null;
 
-    await new Promise((resolve, reject) => {
-      commitMutation({
-        variables: { name, nitcGroupId, nitcParticipantType },
-        onCompleted: resolve,
-        onError: reject,
-        updater: (store) => {
-          store.invalidateStore();
-        },
+    try {
+      await new Promise((resolve, reject) => {
+        commitMutation({
+          variables: { name, nitcGroupId, nitcParticipantType },
+          onCompleted: resolve,
+          onError: reject,
+          updater: (store) => {
+            store.invalidateStore();
+          },
+        });
       });
-    });
+    } catch (err) {
+      notifyError(err, "Couldn't create category");
+      return;
+    }
 
     navigate("/admin/categories");
   }

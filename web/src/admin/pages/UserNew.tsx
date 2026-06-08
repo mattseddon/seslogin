@@ -2,9 +2,11 @@ import { useNavigate } from "react-router";
 import { graphql, useLazyLoadQuery, useMutation } from "react-relay";
 import type { UserNewQuery } from "./__generated__/UserNewQuery.graphql";
 import type { UserNewMutation } from "./__generated__/UserNewMutation.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function NewUser() {
   const navigate = useNavigate();
+  const { notifyError } = useNotify();
   const data = useLazyLoadQuery<UserNewQuery>(
     graphql`
       query UserNewQuery {
@@ -43,16 +45,21 @@ export default function NewUser() {
       .getAll("locations")
       .map((v) => v.toString());
 
-    await new Promise((resolve, reject) => {
-      commitMutation({
-        variables: { email, isSuper, locationGrants },
-        onCompleted: resolve,
-        onError: reject,
-        updater: (store) => {
-          store.invalidateStore();
-        },
+    try {
+      await new Promise((resolve, reject) => {
+        commitMutation({
+          variables: { email, isSuper, locationGrants },
+          onCompleted: resolve,
+          onError: reject,
+          updater: (store) => {
+            store.invalidateStore();
+          },
+        });
       });
-    });
+    } catch (err) {
+      notifyError(err, "Couldn't create user");
+      return;
+    }
 
     navigate("/admin/users");
   }

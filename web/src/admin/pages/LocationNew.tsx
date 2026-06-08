@@ -1,8 +1,10 @@
 import { useMutation, graphql } from "react-relay";
 import { useNavigate } from "react-router";
 import { type LocationNewMutation } from "./__generated__/LocationNewMutation.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function LocationNew() {
+  const { notifyError } = useNotify();
   const [commitMutation, isMutationInFlight] = useMutation<LocationNewMutation>(
     graphql`
       mutation LocationNewMutation($name: String!, $nitcEnabled: Int) {
@@ -22,20 +24,25 @@ export default function LocationNew() {
       ? Math.floor(new Date(nitcEnabledDate + "T00:00:00Z").getTime() / 1000)
       : null;
 
-    await new Promise((resolve, reject) => {
-      commitMutation({
-        variables: { name, nitcEnabled },
-        onCompleted: (data) => {
-          resolve(data);
-        },
-        onError: (err) => {
-          reject(err);
-        },
-        updater: (store) => {
-          store.invalidateStore();
-        },
+    try {
+      await new Promise((resolve, reject) => {
+        commitMutation({
+          variables: { name, nitcEnabled },
+          onCompleted: (data) => {
+            resolve(data);
+          },
+          onError: (err) => {
+            reject(err);
+          },
+          updater: (store) => {
+            store.invalidateStore();
+          },
+        });
       });
-    });
+    } catch (err) {
+      notifyError(err, "Couldn't create location");
+      return;
+    }
 
     // this should only happen if no error was thrown
     navigate("/admin/locations");

@@ -5,11 +5,13 @@ import { useNavigate } from "react-router";
 import useSelectedLocation from "../components/useSelectedLocation";
 import type { ActivityNewMutation } from "./__generated__/ActivityNewMutation.graphql";
 import type { ActivityNewQuery } from "./__generated__/ActivityNewQuery.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function ActivityNew() {
   const selectedLocation = useSelectedLocation();
   const locationId = selectedLocation.id;
   const navigate = useNavigate();
+  const { notifyError } = useNotify();
   const [startValue, setStartValue] = useState("");
   const [endValue, setEndValue] = useState("");
   const data = useLazyLoadQuery<ActivityNewQuery>(
@@ -75,24 +77,31 @@ export default function ActivityNew() {
     const start = formData.get("start")?.toString();
     const end = formData.get("end")?.toString();
     if (!start) {
-      throw new Error("Start time is required");
+      notifyError("Start time is required");
+      return;
     }
     if (!end) {
-      throw new Error("End time is required");
+      notifyError("End time is required");
+      return;
     }
     const startTime = Math.floor(new Date(start).getTime() / 1000);
     const endTime = Math.floor(new Date(end).getTime() / 1000);
-    await new Promise((resolve, reject) => {
-      commitMutation({
-        variables: { personId, categoryId, startTime, endTime, locationId },
-        onCompleted: resolve,
-        onError: reject,
-        updater: (store) => {
-          const location = store.get(locationId);
-          location?.invalidateRecord();
-        },
+    try {
+      await new Promise((resolve, reject) => {
+        commitMutation({
+          variables: { personId, categoryId, startTime, endTime, locationId },
+          onCompleted: resolve,
+          onError: reject,
+          updater: (store) => {
+            const location = store.get(locationId);
+            location?.invalidateRecord();
+          },
+        });
       });
-    });
+    } catch (err) {
+      notifyError(err, "Couldn't create activity entry");
+      return;
+    }
     navigate("/admin/activity");
   }
 

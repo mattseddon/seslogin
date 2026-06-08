@@ -2,6 +2,7 @@ import { useState } from "react";
 import { graphql, useLazyLoadQuery, useMutation } from "react-relay";
 import type { SettingsDailyEmailQuery } from "./__generated__/SettingsDailyEmailQuery.graphql";
 import type { SettingsDailyEmailMutation } from "./__generated__/SettingsDailyEmailMutation.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function SettingsDailyEmail() {
   const data = useLazyLoadQuery<SettingsDailyEmailQuery>(
@@ -31,6 +32,7 @@ export default function SettingsDailyEmail() {
       }
     `);
 
+  const { notifyError } = useNotify();
   const user = data.user;
   const [selectedLocations, setSelectedLocations] = useState(
     () => new Set(user.emailSummaryLocationIds),
@@ -44,17 +46,21 @@ export default function SettingsDailyEmail() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaved(false);
-    await new Promise<void>((resolve, reject) => {
-      commitMutation({
-        variables: { dailyLocationIds: Array.from(selectedLocations) },
-        onCompleted: () => resolve(),
-        onError: reject,
-        updater: (store) => {
-          store.invalidateStore();
-        },
+    try {
+      await new Promise<void>((resolve, reject) => {
+        commitMutation({
+          variables: { dailyLocationIds: Array.from(selectedLocations) },
+          onCompleted: () => resolve(),
+          onError: reject,
+          updater: (store) => {
+            store.invalidateStore();
+          },
+        });
       });
-    });
-    setSaved(true);
+      setSaved(true);
+    } catch (err) {
+      notifyError(err, "Couldn't save daily email settings");
+    }
   }
 
   return (

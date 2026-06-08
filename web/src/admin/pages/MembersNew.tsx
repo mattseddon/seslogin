@@ -2,8 +2,10 @@ import { graphql, useMutation } from "react-relay";
 import { useNavigate } from "react-router";
 import useSelectedLocation from "../components/useSelectedLocation";
 import type { MembersNewMutation } from "./__generated__/MembersNewMutation.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function MembersNew() {
+  const { notifyError } = useNotify();
   const [commitMutation, isMutationInFlight] = useMutation<MembersNewMutation>(
     graphql`
       mutation MembersNewMutation(
@@ -35,17 +37,22 @@ export default function MembersNew() {
     const firstName = formData.get("givenname")?.toString() || "";
     const lastName = formData.get("surname")?.toString() || "";
     const memberNumber = formData.get("serialnumber")?.toString() || "";
-    await new Promise((resolve, reject) => {
-      commitMutation({
-        variables: { firstName, lastName, memberNumber, locationId },
-        onCompleted: resolve,
-        onError: reject,
-        updater: (store) => {
-          const location = store.get(locationId);
-          location?.invalidateRecord();
-        },
+    try {
+      await new Promise((resolve, reject) => {
+        commitMutation({
+          variables: { firstName, lastName, memberNumber, locationId },
+          onCompleted: resolve,
+          onError: reject,
+          updater: (store) => {
+            const location = store.get(locationId);
+            location?.invalidateRecord();
+          },
+        });
       });
-    });
+    } catch (err) {
+      notifyError(err, "Couldn't create member");
+      return;
+    }
 
     navigate("/admin/members");
   }

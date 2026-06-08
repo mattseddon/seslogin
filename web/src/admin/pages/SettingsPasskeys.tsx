@@ -4,6 +4,8 @@ import type { SettingsPasskeysQuery } from "./__generated__/SettingsPasskeysQuer
 import type { SettingsPasskeysRenameMutation } from "./__generated__/SettingsPasskeysRenameMutation.graphql";
 import type { SettingsPasskeysDeleteMutation } from "./__generated__/SettingsPasskeysDeleteMutation.graphql";
 import { usePasskeyRegistration } from "../components/usePasskeyRegistration";
+import { useNotify } from "../components/useNotify";
+import { getErrorMessage } from "../../lib/relayErrors";
 import {
   browserSupportsWebAuthn,
   markPasskeyEnrollPromptShown,
@@ -41,6 +43,7 @@ export default function SettingsPasskeys() {
   const atCap = passkeys.length >= MAX_PASSKEYS;
 
   const register = usePasskeyRegistration();
+  const { notifyError } = useNotify();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,8 +77,8 @@ export default function SettingsPasskeys() {
     try {
       await register(trimmed);
       refresh();
-    } catch {
-      setError("Couldn't add a passkey. Please try again.");
+    } catch (err) {
+      setError(`Couldn't add a passkey: ${getErrorMessage(err)}`);
     } finally {
       setBusy(false);
     }
@@ -89,6 +92,7 @@ export default function SettingsPasskeys() {
     commitRename({
       variables: { id, name: trimmed },
       onCompleted: () => refresh(),
+      onError: (err) => notifyError(err, "Couldn't rename passkey"),
     });
   }
 
@@ -107,6 +111,7 @@ export default function SettingsPasskeys() {
         if (wasLastPasskey) markPasskeyEnrollPromptShown();
         refresh();
       },
+      onError: (err) => notifyError(err, "Couldn't delete passkey"),
     });
   }
 

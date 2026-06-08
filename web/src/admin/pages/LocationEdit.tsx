@@ -2,10 +2,12 @@ import { useNavigate, useParams } from "react-router";
 import { graphql, useLazyLoadQuery, useMutation } from "react-relay";
 import type { LocationEditQuery } from "./__generated__/LocationEditQuery.graphql";
 import type { LocationEditMutation } from "./__generated__/LocationEditMutation.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function EditLocation() {
   const params = useParams();
   const navigate = useNavigate();
+  const { notifyError } = useNotify();
   const id = params.locationId!;
 
   const data = useLazyLoadQuery<LocationEditQuery>(
@@ -54,16 +56,21 @@ export default function EditLocation() {
       ? Math.floor(new Date(nitcEnabledDate + "T00:00:00Z").getTime() / 1000)
       : null;
 
-    await new Promise((resolve, reject) => {
-      commitMutation({
-        variables: { id: location.id, name, enabled, nitcEnabled },
-        onCompleted: resolve,
-        onError: reject,
-        updater: (store) => {
-          store.invalidateStore();
-        },
+    try {
+      await new Promise((resolve, reject) => {
+        commitMutation({
+          variables: { id: location.id, name, enabled, nitcEnabled },
+          onCompleted: resolve,
+          onError: reject,
+          updater: (store) => {
+            store.invalidateStore();
+          },
+        });
       });
-    });
+    } catch (err) {
+      notifyError(err, "Couldn't save location");
+      return;
+    }
 
     navigate("/admin/locations");
   }

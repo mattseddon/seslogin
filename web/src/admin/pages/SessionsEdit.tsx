@@ -3,10 +3,12 @@ import { useNavigate, useParams } from "react-router";
 import SessionForm from "../components/SessionForm";
 import type { SessionsEditMutation } from "./__generated__/SessionsEditMutation.graphql";
 import type { SessionsEditQuery } from "./__generated__/SessionsEditQuery.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function SessionsEdit() {
   const navigate = useNavigate();
   const params = useParams();
+  const { notifyError } = useNotify();
   const id = params.sessionId!;
 
   const data = useLazyLoadQuery<SessionsEditQuery>(
@@ -46,16 +48,21 @@ export default function SessionsEdit() {
     const config = formData.get("config")?.toString() || "";
     const healthcheckUrl = formData.get("healthcheckUrl")?.toString() || "";
 
-    await new Promise((resolve, reject) => {
-      commitMutation({
-        variables: { id, name, config, healthcheckUrl },
-        onCompleted: resolve,
-        onError: reject,
-        updater: (store) => {
-          store.invalidateStore();
-        },
+    try {
+      await new Promise((resolve, reject) => {
+        commitMutation({
+          variables: { id, name, config, healthcheckUrl },
+          onCompleted: resolve,
+          onError: reject,
+          updater: (store) => {
+            store.invalidateStore();
+          },
+        });
       });
-    });
+    } catch (err) {
+      notifyError(err, "Couldn't save kiosk");
+      return;
+    }
 
     navigate("/admin/sessions");
   }

@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { graphql, useLazyLoadQuery, useMutation } from "react-relay";
 import type { NitcGroupListQuery } from "./__generated__/NitcGroupListQuery.graphql";
 import type { NitcGroupListDeleteMutation } from "./__generated__/NitcGroupListDeleteMutation.graphql";
+import { useNotify } from "../components/useNotify";
 
 type NitcGroupData = {
   id: string;
@@ -24,6 +25,7 @@ function Row({
   idx: number;
   categories: ReadonlyArray<CategoryData>;
 }) {
+  const { notifyError } = useNotify();
   const [commitMutation, isMutationInFlight] =
     useMutation<NitcGroupListDeleteMutation>(graphql`
       mutation NitcGroupListDeleteMutation($id: ID!) {
@@ -36,16 +38,20 @@ function Row({
       `Are you sure you want to delete NITC group ${group.id}?`,
     );
     if (yes) {
-      await new Promise((resolve, reject) => {
-        commitMutation({
-          variables: { id: group.id },
-          onCompleted: resolve,
-          onError: reject,
-          updater: (store) => {
-            store.invalidateStore();
-          },
+      try {
+        await new Promise((resolve, reject) => {
+          commitMutation({
+            variables: { id: group.id },
+            onCompleted: resolve,
+            onError: reject,
+            updater: (store) => {
+              store.invalidateStore();
+            },
+          });
         });
-      });
+      } catch (err) {
+        notifyError(err, `Couldn't delete NITC group ${group.id}`);
+      }
     }
   }
 

@@ -5,10 +5,12 @@ import { dateToInputDateTimeLocal } from "../../lib/time";
 import useSelectedLocation from "../components/useSelectedLocation";
 import type { ActivityEditQuery } from "./__generated__/ActivityEditQuery.graphql";
 import type { ActivityEditMutation } from "./__generated__/ActivityEditMutation.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function ActivityEdit() {
   const params = useParams();
   const navigate = useNavigate();
+  const { notifyError } = useNotify();
   const selectedLocation = useSelectedLocation();
   const locationId = selectedLocation.id;
   const data = useLazyLoadQuery<ActivityEditQuery>(
@@ -86,25 +88,32 @@ export default function ActivityEdit() {
     const start = formData.get("start")?.toString();
     const end = formData.get("end")?.toString();
     if (!start) {
-      throw new Error("Start time is required");
+      notifyError("Start time is required");
+      return;
     }
     if (!end) {
-      throw new Error("End time is required");
+      notifyError("End time is required");
+      return;
     }
     const startTime = Math.floor(new Date(start).getTime() / 1000);
     const endTime = Math.floor(new Date(end).getTime() / 1000);
 
-    await new Promise((resolve, reject) => {
-      commitMutation({
-        variables: { id: data.period.id, startTime, endTime, categoryId },
-        onCompleted: resolve,
-        onError: reject,
-        updater: (store) => {
-          const location = store.get(locationId);
-          location?.invalidateRecord();
-        },
+    try {
+      await new Promise((resolve, reject) => {
+        commitMutation({
+          variables: { id: data.period.id, startTime, endTime, categoryId },
+          onCompleted: resolve,
+          onError: reject,
+          updater: (store) => {
+            const location = store.get(locationId);
+            location?.invalidateRecord();
+          },
+        });
       });
-    });
+    } catch (err) {
+      notifyError(err, "Couldn't save activity entry");
+      return;
+    }
     navigate("/admin/activity");
   }
 

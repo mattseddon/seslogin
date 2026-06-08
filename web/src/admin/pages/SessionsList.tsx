@@ -14,6 +14,7 @@ import type {
   SessionsListQuery$data,
 } from "./__generated__/SessionsListQuery.graphql";
 import type { SessionsListDeleteMutation } from "./__generated__/SessionsListDeleteMutation.graphql";
+import { useNotify } from "../components/useNotify";
 
 type Session = SessionsListQuery$data["location"]["sessions"][number];
 
@@ -27,6 +28,7 @@ function Row({
   isDev: boolean;
 }) {
   const [now] = useState(() => Math.round(Date.now() / 1000));
+  const { notifyError } = useNotify();
   const [commitMutation, isMutationInFlight] =
     useMutation<SessionsListDeleteMutation>(graphql`
       mutation SessionsListDeleteMutation($id: ID!) {
@@ -39,16 +41,20 @@ function Row({
       `Are you sure you want to delete this kiosk? Any computer using it will no longer be able to be used to access the system. This action cannot be undone.`,
     );
     if (yes) {
-      await new Promise((resolve, reject) => {
-        commitMutation({
-          variables: { id: session.id },
-          onCompleted: resolve,
-          onError: reject,
-          updater: (store) => {
-            store.delete(session.id);
-          },
+      try {
+        await new Promise((resolve, reject) => {
+          commitMutation({
+            variables: { id: session.id },
+            onCompleted: resolve,
+            onError: reject,
+            updater: (store) => {
+              store.delete(session.id);
+            },
+          });
         });
-      });
+      } catch (err) {
+        notifyError(err, `Couldn't delete kiosk ${session.name}`);
+      }
     }
   }
 

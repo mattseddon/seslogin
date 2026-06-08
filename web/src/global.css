@@ -286,6 +286,58 @@ footer {
   border: 1px solid rgba(170, 0, 0, 0.18);
 }
 
+/* Toast notifications (admin mutation errors etc.) */
+.toast-region {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 32px));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  line-height: 1.4;
+  font-size: 15px;
+}
+
+.toast--error {
+  color: #6d1b1b;
+  background: #fdeaea;
+  border: 1px solid rgba(170, 0, 0, 0.28);
+}
+
+.toast--success {
+  color: #1f5132;
+  background: #e9f7ee;
+  border: 1px solid rgba(31, 122, 70, 0.28);
+}
+
+.toast__message {
+  flex: 1;
+  word-break: break-word;
+}
+
+.toast__close {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  min-width: auto;
+}
+
 .action-panel__button {
   min-width: 250px;
   padding: 12px 24px;

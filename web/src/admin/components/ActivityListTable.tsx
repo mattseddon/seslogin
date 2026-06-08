@@ -11,6 +11,7 @@ import type {
 import bulletOrange from "../../assets/bullet-orange.svg";
 import bulletGreen from "../../assets/bullet-green.svg";
 import { useUserInfo } from "./useUserInfo";
+import { useNotify } from "./useNotify";
 
 type Firstcol = "location" | "person";
 
@@ -100,6 +101,7 @@ function Row<T extends ActivityListTable_period$key>({
   isDev: boolean;
 }) {
   const period = entry.data;
+  const { notifyError } = useNotify();
   const [commitMutation, isMutationInFlight] =
     useMutation<ActivityListTableDeleteMutation>(graphql`
       mutation ActivityListTableDeleteMutation($id: ID!) {
@@ -112,16 +114,20 @@ function Row<T extends ActivityListTable_period$key>({
       `Are you sure you want to delete this activity entry? This action cannot be undone.`,
     );
     if (yes) {
-      await new Promise((resolve, reject) => {
-        commitMutation({
-          variables: { id: period.id },
-          onCompleted: resolve,
-          onError: reject,
-          updater: (store) => {
-            store.delete(period.id);
-          },
+      try {
+        await new Promise((resolve, reject) => {
+          commitMutation({
+            variables: { id: period.id },
+            onCompleted: resolve,
+            onError: reject,
+            updater: (store) => {
+              store.delete(period.id);
+            },
+          });
         });
-      });
+      } catch (err) {
+        notifyError(err, "Couldn't delete activity entry");
+      }
     }
   }
 

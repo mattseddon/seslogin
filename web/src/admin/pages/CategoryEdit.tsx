@@ -2,9 +2,11 @@ import { graphql, useLazyLoadQuery, useMutation } from "react-relay";
 import { useNavigate, useParams } from "react-router";
 import type { CategoryEditMutation } from "./__generated__/CategoryEditMutation.graphql";
 import type { CategoryEditQuery } from "./__generated__/CategoryEditQuery.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function CategoryEdit() {
   const navigate = useNavigate();
+  const { notifyError } = useNotify();
   const params = useParams();
   const id = params.categoryId!;
   const data = useLazyLoadQuery<CategoryEditQuery>(
@@ -59,16 +61,21 @@ export default function CategoryEdit() {
     const nitcParticipantType =
       formData.get("nitcParticipantType")?.toString() || null;
 
-    await new Promise((resolve, reject) => {
-      commitMutation({
-        variables: { id, name, enabled, nitcGroupId, nitcParticipantType },
-        onCompleted: resolve,
-        onError: reject,
-        updater: (store) => {
-          store.invalidateStore();
-        },
+    try {
+      await new Promise((resolve, reject) => {
+        commitMutation({
+          variables: { id, name, enabled, nitcGroupId, nitcParticipantType },
+          onCompleted: resolve,
+          onError: reject,
+          updater: (store) => {
+            store.invalidateStore();
+          },
+        });
       });
-    });
+    } catch (err) {
+      notifyError(err, "Couldn't save category");
+      return;
+    }
     navigate("/admin/categories");
   }
 

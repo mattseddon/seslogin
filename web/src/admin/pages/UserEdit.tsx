@@ -3,10 +3,12 @@ import { useNavigate, useParams } from "react-router";
 import { graphql, useLazyLoadQuery, useMutation } from "react-relay";
 import type { UserEditQuery } from "./__generated__/UserEditQuery.graphql";
 import type { UserEditMutation } from "./__generated__/UserEditMutation.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function UserEdit() {
   const navigate = useNavigate();
   const params = useParams();
+  const { notifyError } = useNotify();
   const id = params.userId!;
 
   const data = useLazyLoadQuery<UserEditQuery>(
@@ -66,23 +68,28 @@ export default function UserEdit() {
       .getAll("locations")
       .map((v) => v.toString());
 
-    await new Promise((resolve, reject) => {
-      commitMutation({
-        variables: {
-          id,
-          email,
-          isSuper,
-          isDev,
-          locationGrants,
-          enabled,
-        },
-        onCompleted: resolve,
-        onError: reject,
-        updater: (store) => {
-          store.invalidateStore();
-        },
+    try {
+      await new Promise((resolve, reject) => {
+        commitMutation({
+          variables: {
+            id,
+            email,
+            isSuper,
+            isDev,
+            locationGrants,
+            enabled,
+          },
+          onCompleted: resolve,
+          onError: reject,
+          updater: (store) => {
+            store.invalidateStore();
+          },
+        });
       });
-    });
+    } catch (err) {
+      notifyError(err, "Couldn't save user");
+      return;
+    }
 
     navigate("/admin/users");
   }

@@ -13,6 +13,7 @@ import type { LocationListEnqueueSyncMutation } from "./__generated__/LocationLi
 import { useSettingsDispatch } from "../../lib/settings";
 import { formatFullDateTime } from "../../lib/time";
 import { useUserInfo } from "../components/useUserInfo";
+import { useNotify } from "../components/useNotify";
 
 function Row(props: {
   location: LocationList_item$key;
@@ -23,6 +24,7 @@ function Row(props: {
   const isDev = props.isDev;
   const settingsDispatch = useSettingsDispatch()!;
   const navigate = useNavigate();
+  const { notifyError } = useNotify();
   const location = useFragment<LocationList_item$key>(
     graphql`
       fragment LocationList_item on Location {
@@ -66,7 +68,12 @@ function Row(props: {
     `);
 
   function triggerSync() {
-    commitSync({ variables: { locationId: location.id } });
+    commitSync({
+      variables: { locationId: location.id },
+      onError: (err) => {
+        notifyError(err, `Couldn't queue sync for ${location.name}`);
+      },
+    });
   }
 
   async function toggleEnabled() {
@@ -75,21 +82,25 @@ function Row(props: {
       `Are you sure you want to ${action} location ${location.name}?`,
     );
     if (yes) {
-      await new Promise((resolve, reject) => {
-        commitMutation({
-          variables: {
-            id: location.id,
-            name: location.name,
-            nitcEnabled: location.nitcEnabled,
-            enabled: !location.enabled,
-          },
-          onCompleted: resolve,
-          onError: reject,
-          updater: (store) => {
-            store.invalidateStore();
-          },
+      try {
+        await new Promise((resolve, reject) => {
+          commitMutation({
+            variables: {
+              id: location.id,
+              name: location.name,
+              nitcEnabled: location.nitcEnabled,
+              enabled: !location.enabled,
+            },
+            onCompleted: resolve,
+            onError: reject,
+            updater: (store) => {
+              store.invalidateStore();
+            },
+          });
         });
-      });
+      } catch (err) {
+        notifyError(err, `Couldn't ${action} location ${location.name}`);
+      }
     }
   }
 

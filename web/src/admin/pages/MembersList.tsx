@@ -11,6 +11,7 @@ import { formatFullDateTime } from "../../lib/time";
 import bulletGreen from "../../assets/bullet-green.svg";
 import { useState } from "react";
 import { useUserInfo } from "../components/useUserInfo";
+import { useNotify } from "../components/useNotify";
 
 type Person = MembersListQuery$data["location"]["people"][number];
 
@@ -23,6 +24,7 @@ function Row({
   idx: number;
   isDev: boolean;
 }) {
+  const { notifyError } = useNotify();
   const [commitMutation, isMutationInFlight] =
     useMutation<MembersListDeleteMutation>(graphql`
       mutation MembersListDeleteMutation($id: ID!) {
@@ -37,16 +39,23 @@ function Row({
         "This action cannot be undone.",
     );
     if (yes) {
-      await new Promise((resolve, reject) => {
-        commitMutation({
-          variables: { id: person.id },
-          onCompleted: resolve,
-          onError: reject,
-          updater: (store) => {
-            store.delete(person.id);
-          },
+      try {
+        await new Promise((resolve, reject) => {
+          commitMutation({
+            variables: { id: person.id },
+            onCompleted: resolve,
+            onError: reject,
+            updater: (store) => {
+              store.delete(person.id);
+            },
+          });
         });
-      });
+      } catch (err) {
+        notifyError(
+          err,
+          `Couldn't delete member ${person.firstName} ${person.lastName}`,
+        );
+      }
     }
   }
 
@@ -128,6 +137,7 @@ export default function MembersList() {
     `,
   );
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const { notifyError } = useNotify();
 
   function triggerSync() {
     commitSync({
@@ -137,7 +147,7 @@ export default function MembersList() {
       },
       onError: (err) => {
         setSyncStatus("Sync failed");
-        console.log("Sync failed", err);
+        notifyError(err, "Couldn't queue member sync");
         setTimeout(() => setSyncStatus(null), 10_000);
       },
     });

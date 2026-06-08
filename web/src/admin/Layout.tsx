@@ -6,6 +6,7 @@ import PageErrorFallback from "../components/PageErrorFallback";
 import SettingsProvider from "./components/SettingsProvider";
 import "./style.css";
 import { UserInfoProvider } from "./components/UserInfoProvider";
+import { NotificationProvider } from "./components/Notifications";
 import AdminRelayEnvironment from "./components/AdminRelayEnvironment";
 import { Outlet } from "react-router";
 import AdminLoginPage from "./components/AdminLoginPage";
@@ -129,13 +130,15 @@ function LoginRequired() {
         <ErrorBoundary FallbackComponent={PageErrorFallback}>
           <Suspense fallback={<LoadingIndicator />}>
             <UserInfoProvider>
-              <PasskeyEnrollPrompt>
-                <AdminContent onLogout={onLogout}>
-                  <Suspense fallback={<LoadingIndicator />}>
-                    <Outlet />
-                  </Suspense>
-                </AdminContent>
-              </PasskeyEnrollPrompt>
+              <NotificationProvider>
+                <PasskeyEnrollPrompt>
+                  <AdminContent onLogout={onLogout}>
+                    <Suspense fallback={<LoadingIndicator />}>
+                      <Outlet />
+                    </Suspense>
+                  </AdminContent>
+                </PasskeyEnrollPrompt>
+              </NotificationProvider>
             </UserInfoProvider>
           </Suspense>
         </ErrorBoundary>

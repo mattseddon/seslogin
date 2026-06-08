@@ -7,6 +7,7 @@ import {
   markPasskeyEnrollPromptShown,
 } from "../../lib/passkey";
 import { usePasskeyRegistration } from "./usePasskeyRegistration";
+import { getErrorMessage } from "../../lib/relayErrors";
 import type { PasskeyEnrollPromptQuery } from "./__generated__/PasskeyEnrollPromptQuery.graphql";
 
 /**
@@ -63,8 +64,8 @@ function PasskeyInterstitial({ onDone }: { onDone: () => void }) {
     try {
       await register(defaultPasskeyName());
       onDone();
-    } catch {
-      setError("Couldn't add a passkey. Please try again.");
+    } catch (err) {
+      setError(`Couldn't add a passkey: ${getErrorMessage(err)}`);
     } finally {
       setBusy(false);
     }

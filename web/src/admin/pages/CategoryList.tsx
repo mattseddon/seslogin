@@ -4,6 +4,7 @@ import { graphql, useLazyLoadQuery, useMutation } from "react-relay";
 import type { CategoryListDisableMutation } from "./__generated__/CategoryListDisableMutation.graphql";
 import type { CategoryListQuery } from "./__generated__/CategoryListQuery.graphql";
 import { useUserInfo } from "../components/useUserInfo";
+import { useNotify } from "../components/useNotify";
 
 type CategoryData = {
   id: string;
@@ -30,6 +31,7 @@ function Row({
   idx: number;
   isDev: boolean;
 }) {
+  const { notifyError } = useNotify();
   const [commitMutation, isMutationInFlight] =
     useMutation<CategoryListDisableMutation>(graphql`
       mutation CategoryListDisableMutation(
@@ -57,21 +59,25 @@ function Row({
       `Are you sure you want to disable category ${category.name}?`,
     );
     if (yes) {
-      await new Promise((resolve, reject) => {
-        commitMutation({
-          variables: {
-            id: category.id,
-            name: category.name,
-            nitcGroupId: category.nitcGroupId ?? null,
-            nitcParticipantType: category.nitcParticipantType ?? null,
-          },
-          onCompleted: resolve,
-          onError: reject,
-          updater: (store) => {
-            store.invalidateStore();
-          },
+      try {
+        await new Promise((resolve, reject) => {
+          commitMutation({
+            variables: {
+              id: category.id,
+              name: category.name,
+              nitcGroupId: category.nitcGroupId ?? null,
+              nitcParticipantType: category.nitcParticipantType ?? null,
+            },
+            onCompleted: resolve,
+            onError: reject,
+            updater: (store) => {
+              store.invalidateStore();
+            },
+          });
         });
-      });
+      } catch (err) {
+        notifyError(err, `Couldn't disable category ${category.name}`);
+      }
     }
   }
 

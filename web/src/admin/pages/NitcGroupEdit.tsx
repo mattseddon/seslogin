@@ -2,10 +2,12 @@ import { useNavigate, useParams } from "react-router";
 import { graphql, useLazyLoadQuery, useMutation } from "react-relay";
 import type { NitcGroupEditQuery } from "./__generated__/NitcGroupEditQuery.graphql";
 import type { NitcGroupEditMutation } from "./__generated__/NitcGroupEditMutation.graphql";
+import { useNotify } from "../components/useNotify";
 
 export default function NitcGroupEdit() {
   const navigate = useNavigate();
   const params = useParams();
+  const { notifyError } = useNotify();
   const id = params.nitcGroupId!;
 
   const data = useLazyLoadQuery<NitcGroupEditQuery>(
@@ -53,16 +55,21 @@ export default function NitcGroupEdit() {
       .filter((t) => formData.get(`tag_${t.id}`) === "on")
       .map((t) => parseInt(t.id, 10));
 
-    await new Promise((resolve, reject) => {
-      commitMutation({
-        variables: { id, nitcType, nitcTagIds },
-        onCompleted: resolve,
-        onError: reject,
-        updater: (store) => {
-          store.invalidateStore();
-        },
+    try {
+      await new Promise((resolve, reject) => {
+        commitMutation({
+          variables: { id, nitcType, nitcTagIds },
+          onCompleted: resolve,
+          onError: reject,
+          updater: (store) => {
+            store.invalidateStore();
+          },
+        });
       });
-    });
+    } catch (err) {
+      notifyError(err, "Couldn't save NITC group");
+      return;
+    }
 
     navigate("/admin/categories/nitc-groups");
   }
