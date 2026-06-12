@@ -32,8 +32,8 @@ name = "make-jwt"
 path = "src/bin/make-jwt.rs"
 
 [[bin]]
-name = "list-sessions"
-path = "src/bin/list-sessions.rs"
+name = "cli"
+path = "src/bin/cli.rs"
 
 [[bin]]
 name = "list-recent-periods"
