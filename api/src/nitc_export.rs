@@ -656,48 +656,13 @@ pub async fn sync_nitc_event<D: db::Handler>(
             let ses_api_person_id: Option<i64> = person
                 .and_then(|p| p.ses_api_person_id.as_deref())
                 .and_then(|s| s.parse().ok());
-            let registration_number = person.and_then(|p| p.registration_number.as_deref());
 
-            let ses_person_id = match ses_api_person_id {
-                Some(id) => id,
-                None => {
-                    let Some(registration_number) = registration_number else {
-                        warn!(
-                            "Period {} has no ses_api_person_id or registration_number, skipping participant sync",
-                            period.id
-                        );
-                        continue;
-                    };
-                    if config.dry_run {
-                        info!(
-                            "[dry-run] Would look up SES person for period {} via registration number {}",
-                            period.id, registration_number
-                        );
-                        continue;
-                    }
-                    crate::request_metrics::METRICS
-                        .try_with(|m| m.record_registration_lookup())
-                        .ok();
-                    let Some(ses_person) = clients
-                        .ses
-                        .fetch_person_by_registration_number(registration_number)
-                        .await?
-                    else {
-                        warn!(
-                            "Period {} member {} not found in SES API, skipping participant sync",
-                            period.id, registration_number
-                        );
-                        continue;
-                    };
-                    let Some(id) = ses_person.id else {
-                        warn!(
-                            "Period {} member {} SES API response has no id, skipping participant sync",
-                            period.id, registration_number
-                        );
-                        continue;
-                    };
-                    id
-                }
+            let Some(ses_person_id) = ses_api_person_id else {
+                warn!(
+                    "Period {} has no ses_api_person_id, skipping participant sync",
+                    period.id
+                );
+                continue;
             };
             resolved.push((period, ses_person_id));
         }

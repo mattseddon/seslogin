@@ -198,10 +198,9 @@ async fn main() -> Result<()> {
         .await?;
 
     tracing::info!(
-        "total rru={:.1} wru={:.1} registration_lookups={}",
+        "total rru={:.1} wru={:.1}",
         metrics.read_units(),
         metrics.write_units(),
-        metrics.registration_lookups(),
     );
 
     Ok(())

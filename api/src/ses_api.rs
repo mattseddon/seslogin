@@ -827,25 +827,6 @@ impl SesClient {
         Err(anyhow!("SES API retries exhausted for {}", path))
     }
 
-    pub async fn fetch_person_by_registration_number(
-        &self,
-        registration_number: &str,
-    ) -> Result<Option<SesPerson>> {
-        let url = format!(
-            "{}/people/search/{}",
-            self.base_url.trim_end_matches('/'),
-            registration_number
-        );
-        let people: Vec<SesPerson> = self
-            .post_json_retry(
-                &url,
-                &serde_json::json!({}),
-                &format!("search person registrationNumber={}", registration_number),
-            )
-            .await?;
-        Ok(people.into_iter().next())
-    }
-
     pub async fn fetch_nonincident_types(&self) -> Result<Vec<String>> {
         self.get_json("/nonincidenttypes").await
     }

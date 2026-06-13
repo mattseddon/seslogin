@@ -7,9 +7,6 @@ use tokio::task::JoinHandle;
 pub struct RequestMetrics {
     read_units: Mutex<f64>,
     write_units: Mutex<f64>,
-    /// Count of NITC participant lookups that fell back to resolving by registration number
-    /// (no ses_api_person_id was stored on the person).
-    registration_lookups: Mutex<u64>,
 }
 
 impl RequestMetrics {
@@ -32,15 +29,6 @@ impl RequestMetrics {
 
     pub fn write_units(&self) -> f64 {
         *self.write_units.lock().unwrap()
-    }
-
-    /// Bump the count of registration-number fallback lookups by one.
-    pub fn record_registration_lookup(&self) {
-        *self.registration_lookups.lock().unwrap() += 1;
-    }
-
-    pub fn registration_lookups(&self) -> u64 {
-        *self.registration_lookups.lock().unwrap()
     }
 }
 
