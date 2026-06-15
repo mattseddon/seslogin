@@ -212,10 +212,6 @@ resource "aws_dynamodb_table" "prod_session" {
     type = "S"
   }
   attribute {
-    name = "legacy_id"
-    type = "S"
-  }
-  attribute {
     name = "active"
     type = "N"
   }
@@ -230,11 +226,6 @@ resource "aws_dynamodb_table" "prod_session" {
     hash_key        = "active"
     range_key       = "location_id"
     projection_type = "ALL"
-  }
-  global_secondary_index {
-    name            = "legacy_id-index"
-    hash_key        = "legacy_id"
-    projection_type = "KEYS_ONLY"
   }
 }
 
