@@ -1282,6 +1282,9 @@ impl<A: App + HasDb + HasSqs + Send + Sync + 'static> MutationRoot<A> {
 
         let mut email_config = serde_json::Map::new();
         for loc_id in daily_location_ids {
+            // Only allow configuring summaries for locations the caller can access,
+            // otherwise this becomes a push channel for cross-tenant data.
+            require_location_access(ctx, &loc_id)?;
             let mut inner = serde_json::Map::new();
             inner.insert(
                 "daily".to_string(),

@@ -56,6 +56,8 @@ pub async fn run(db: &impl db::Handler, args: SummaryArgs) -> Result<()> {
         let to_email = user.email.clone();
 
         // Determine which locations this user wants in their daily summary.
+        // Defense in depth: re-filter against the user's grants so a stale or
+        // maliciously-set email_config entry can never leak another tenant's data.
         let summary_location_ids: Vec<String> = user
             .email_config
             .iter()
@@ -64,6 +66,7 @@ pub async fn run(db: &impl db::Handler, args: SummaryArgs) -> Result<()> {
                     .filter(|m| m.contains_key("daily"))
                     .map(|_| loc_id.clone())
             })
+            .filter(|loc_id| user.is_super || user.location_grants.iter().any(|g| g == loc_id))
             .collect();
 
         if summary_location_ids.is_empty() {
