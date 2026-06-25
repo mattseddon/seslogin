@@ -386,6 +386,49 @@ async fn category_names(db: &impl Handler, ids: &[String]) -> HashMap<String, St
     map
 }
 
+async fn session_names(db: &impl Handler, ids: &[String]) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    let refs = unique_refs(ids);
+    if refs.is_empty() {
+        return map;
+    }
+    if let Ok(sessions) = db.get_sessions(&refs).await {
+        for s in sessions.into_iter().flatten() {
+            map.insert(s.id.clone(), s.name.clone());
+        }
+    }
+    map
+}
+
+async fn user_emails(db: &impl Handler, ids: &[String]) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    let refs = unique_refs(ids);
+    if refs.is_empty() {
+        return map;
+    }
+    if let Ok(users) = db.get_users(&refs).await {
+        for u in users.into_iter().flatten() {
+            map.insert(u.id.clone(), u.email.clone());
+        }
+    }
+    map
+}
+
+/// Map NITC event IDs to their event date (the natural human identifier for an event).
+async fn nitc_event_dates(db: &impl Handler, ids: &[String]) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    let refs = unique_refs(ids);
+    if refs.is_empty() {
+        return map;
+    }
+    if let Ok(events) = db.get_nitc_events_by_ids(&refs).await {
+        for e in events {
+            map.insert(e.id.clone(), e.event_date.to_string());
+        }
+    }
+    map
+}
+
 // ── Detail renderers ─────────────────────────────────────────────────────────
 
 async fn show_persons(db: &impl Handler, persons: &[Person]) {
@@ -477,6 +520,28 @@ async fn show_periods(db: &impl Handler, periods: &[Period]) {
         .collect();
     let cat_map = category_names(db, &cat_ids).await;
 
+    let session_ids: Vec<String> = periods
+        .iter()
+        .flat_map(|p| {
+            p.signed_in_session_id
+                .iter()
+                .chain(p.signed_out_session_id.iter())
+                .cloned()
+        })
+        .collect();
+    let session_map = session_names(db, &session_ids).await;
+
+    let event_ids: Vec<String> = periods
+        .iter()
+        .filter_map(|p| p.nitc_event_id.clone())
+        .collect();
+    let event_map = nitc_event_dates(db, &event_ids).await;
+
+    let opt_ref = |id: &Option<String>, map: &HashMap<String, String>| match id {
+        Some(v) => decorate(v, map.get(v)),
+        None => "-".to_string(),
+    };
+
     for (i, p) in periods.iter().enumerate() {
         if i > 0 {
             println!("{DIVIDER}");
@@ -503,10 +568,16 @@ async fn show_periods(db: &impl Handler, periods: &[Period]) {
                     .map(fmt_ts)
                     .unwrap_or_else(|| "active".to_string()),
             ),
-            ("signed_in_session_id", opt_str(&p.signed_in_session_id)),
-            ("signed_out_session_id", opt_str(&p.signed_out_session_id)),
+            (
+                "signed_in_session_id",
+                opt_ref(&p.signed_in_session_id, &session_map),
+            ),
+            (
+                "signed_out_session_id",
+                opt_ref(&p.signed_out_session_id, &session_map),
+            ),
             ("version", p.version.to_string()),
-            ("nitc_event_id", opt_str(&p.nitc_event_id)),
+            ("nitc_event_id", opt_ref(&p.nitc_event_id, &event_map)),
             (
                 "nitc_participant_id",
                 p.nitc_participant_id
@@ -592,6 +663,14 @@ async fn show_users(db: &impl Handler, users: &[User]) {
 async fn show_nitc_events(db: &impl Handler, events: &[seslogin::db::NitcEvent]) {
     let loc_ids: Vec<String> = events.iter().map(|e| e.location_id.clone()).collect();
     let locs = location_names(db, &loc_ids).await;
+    let mut group_types: HashMap<String, String> = HashMap::new();
+    for e in events {
+        if !group_types.contains_key(&e.nitc_group_id)
+            && let Ok(Some(g)) = db.get_nitc_group(&e.nitc_group_id).await
+        {
+            group_types.insert(g.id.clone(), g.nitc_type.clone());
+        }
+    }
     for (i, e) in events.iter().enumerate() {
         if i > 0 {
             println!("{DIVIDER}");
@@ -602,7 +681,10 @@ async fn show_nitc_events(db: &impl Handler, events: &[seslogin::db::NitcEvent])
                 "location_id",
                 decorate(&e.location_id, locs.get(&e.location_id)),
             ),
-            ("nitc_group_id", e.nitc_group_id.clone()),
+            (
+                "nitc_group_id",
+                decorate(&e.nitc_group_id, group_types.get(&e.nitc_group_id)),
+            ),
             ("event_date", e.event_date.to_string()),
             (
                 "ses_api_nitc_id",
@@ -967,6 +1049,14 @@ async fn run(db: &impl Handler, object: Object) -> Result<()> {
                         .collect::<Vec<_>>(),
                 )
                 .await;
+                let creators = user_emails(
+                    db,
+                    &found
+                        .iter()
+                        .map(|t| t.created_by_user_id.clone())
+                        .collect::<Vec<_>>(),
+                )
+                .await;
                 for (i, t) in found.iter().enumerate() {
                     if i > 0 {
                         println!("{DIVIDER}");
@@ -986,7 +1076,10 @@ async fn run(db: &impl Handler, object: Object) -> Result<()> {
                         ("read_only", bool_str(t.read_only)),
                         ("location_grants", grants),
                         ("created_at", fmt_ts(t.created_at)),
-                        ("created_by_user_id", t.created_by_user_id.clone()),
+                        (
+                            "created_by_user_id",
+                            decorate(&t.created_by_user_id, creators.get(&t.created_by_user_id)),
+                        ),
                         ("expires_at", opt_ts(t.expires_at)),
                         ("revoked_at", opt_ts(t.revoked_at)),
                         ("last_used_at", opt_ts(t.last_used_at)),
@@ -1028,6 +1121,17 @@ async fn run(db: &impl Handler, object: Object) -> Result<()> {
                         None => eprintln!("not found: {}", id),
                     }
                 }
+                // Resolve tag IDs to names (single full-table fetch), only if needed.
+                let tag_names: HashMap<i32, String> =
+                    if found.iter().any(|g| !g.nitc_tag_ids.is_empty()) {
+                        db.list_nitc_tags()
+                            .await?
+                            .into_iter()
+                            .map(|t| (t.id, t.name))
+                            .collect()
+                    } else {
+                        HashMap::new()
+                    };
                 for (i, g) in found.iter().enumerate() {
                     if i > 0 {
                         println!("{DIVIDER}");
@@ -1039,7 +1143,7 @@ async fn run(db: &impl Handler, object: Object) -> Result<()> {
                             "nitc_tag_ids",
                             g.nitc_tag_ids
                                 .iter()
-                                .map(|t| t.to_string())
+                                .map(|t| decorate(&t.to_string(), tag_names.get(t)))
                                 .collect::<Vec<_>>()
                                 .join(", "),
                         ),
