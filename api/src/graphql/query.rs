@@ -1410,6 +1410,16 @@ impl<A: App + HasDb + Send + Sync + 'static> NitcGroup<A> {
     }
 }
 
+/// Lightweight result of looking a person up by registration number. Carries only
+/// the values the GSI query already returns, so no additional record fetch is needed.
+#[derive(SimpleObject)]
+pub struct PersonRef {
+    /// The matched person's ID.
+    id: ID,
+    /// The registration/member number that was looked up.
+    member_number: String,
+}
+
 pub struct QueryRoot<A: App + HasDb + Send + Sync> {
     _marker: std::marker::PhantomData<A>,
 }
@@ -1534,6 +1544,36 @@ impl<A: App + HasDb + Send + Sync + 'static> QueryRoot<A> {
             .ok_or_else(|| anyhow!("Person with ID {:?} missing", &id))?;
 
         Ok(rec)
+    }
+
+    #[graphql(guard = "AuthGuard::new(AuthRequirement::Authenticated)")]
+    async fn person_by_registration_number(
+        &self,
+        ctx: &Context<'_>,
+        #[graphql(name = "memberNumber", desc = "Registration/member number to look up")]
+        registration_number: String,
+    ) -> Result<Option<PersonRef>> {
+        let registration_number = registration_number.trim();
+        if registration_number.is_empty() {
+            return Err(anyhow!("registration_number cannot be empty"));
+        }
+
+        let app = ctx.data_unchecked::<Arc<A>>().clone();
+        let matches = app
+            .db()
+            .get_person_id_by_registration_number(registration_number)
+            .await?;
+        let Some(person_id) = db::at_most_one(matches, || {
+            format!("Multiple people share registration number {registration_number}")
+        })?
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(PersonRef {
+            id: ID(person_id),
+            member_number: registration_number.to_string(),
+        }))
     }
 
     #[graphql(guard = "AuthGuard::new(AuthRequirement::Authenticated)")]

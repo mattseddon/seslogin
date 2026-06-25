@@ -289,6 +289,21 @@ type Person {
 	lastPeriod: Period
 }
 
+"""
+Lightweight result of looking a person up by registration number. Carries only
+the values the GSI query already returns, so no additional record fetch is needed.
+"""
+type PersonRef {
+	"""
+	The matched person's ID.
+	"""
+	id: ID!
+	"""
+	The registration/member number that was looked up.
+	"""
+	memberNumber: String!
+}
+
 type QueryRoot {
 	user(
 		"""
@@ -308,6 +323,12 @@ type QueryRoot {
 		"""
 		id: ID!
 	): Person!
+	personByRegistrationNumber(
+		"""
+		Registration/member number to look up
+		"""
+		memberNumber: String!
+	): PersonRef
 	period(
 		"""
 		ID for the period to look up
