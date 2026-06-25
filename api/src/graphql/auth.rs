@@ -11,6 +11,8 @@ pub(crate) enum AuthRequirement {
     /// Any authenticated principal: user, session, or API token.
     Authenticated,
     User,
+    /// A user or an API token, but not a kiosk session.
+    UserOrApiToken,
     SuperUser,
 }
 
@@ -57,6 +59,18 @@ impl Guard for AuthGuard {
                     Ok(())
                 } else {
                     Err("Must provide user token".into())
+                }
+            }
+            AuthRequirement::UserOrApiToken => {
+                if match auth {
+                    Some(AuthInfo::User { .. }) => true,
+                    Some(AuthInfo::ApiToken { .. }) => true,
+                    Some(AuthInfo::Session { .. }) => false,
+                    None => false,
+                } {
+                    Ok(())
+                } else {
+                    Err("Must provide user or API token".into())
                 }
             }
             AuthRequirement::SuperUser => {

@@ -565,7 +565,7 @@ impl<A: App + HasDb + HasSqs + Send + Sync + 'static> MutationRoot<A> {
         Ok(true)
     }
 
-    #[graphql(guard = "AuthGuard::new(AuthRequirement::User)")]
+    #[graphql(guard = "AuthGuard::new(AuthRequirement::UserOrApiToken)")]
     async fn create_period(
         &self,
         ctx: &Context<'_>,
