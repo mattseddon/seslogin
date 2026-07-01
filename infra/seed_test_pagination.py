@@ -16,10 +16,12 @@ Empties the table, then writes exactly 62 rows:
   even:     string "y" when `number` is even, absent otherwise
   mod5:     number % 5
 
-Reads DB_PREFIX from ../.env. Uses the `seslogin` AWS profile in ap-southeast-2,
-matching the Terraform provider in infra/main.tf.
+Reads DB_PREFIX from ../.env. Uses the `seslogin-new` AWS profile in
+ap-southeast-2 by default (override with --profile), matching the Terraform
+provider in infra/main.tf.
 """
 
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -29,7 +31,7 @@ from dotenv import load_dotenv
 from nanoid import generate
 
 REGION = "ap-southeast-2"
-PROFILE = "seslogin"
+PROFILE = "seslogin-new"
 ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 ID_SIZE = 4
 
@@ -43,7 +45,11 @@ TABLE_NAME = f"{DB_PREFIX}_test_pagination"
 
 
 def main() -> None:
-    session = boto3.Session(profile_name=PROFILE, region_name=REGION)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--profile", default=PROFILE, help=f"AWS profile (default {PROFILE})")
+    args = ap.parse_args()
+
+    session = boto3.Session(profile_name=args.profile, region_name=REGION)
     table = session.resource("dynamodb").Table(TABLE_NAME)
 
     # Empty the table.

@@ -1,12 +1,17 @@
 name: Pagination integration test (reusable)
 on:
   workflow_call:
-    secrets:
-      AWS_SECRET_ACCESS_KEY:
-        required: true
+
+# Assumes the new-account deploy role via GitHub OIDC to read the pagination
+# fixture table. Callers must grant id-token: write (all deploy workflows do).
+permissions:
+  id-token: write
+  contents: read
 
 env:
   RUSTFLAGS: "-Dwarnings"
+  AWS_REGION: ap-southeast-2
+  DEPLOY_ROLE_ARN: arn:aws:iam::641079927221:role/seslogin-github-deploy
 
 jobs:
   pagination_check:
@@ -33,9 +38,12 @@ jobs:
         run: |
           source .env
           echo "DB_PREFIX=$DB_PREFIX" >> "$GITHUB_ENV"
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
       - name: Run pagination integration tests
         run: cd pagination-test && npx tsx run-tests.ts
         env:
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ap-southeast-2

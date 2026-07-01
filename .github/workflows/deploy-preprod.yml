@@ -5,6 +5,14 @@ on:
     branches:
       - preprod
 
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-2
+  DEPLOY_ROLE_ARN: arn:aws:iam::641079927221:role/seslogin-github-deploy
+
 jobs:
   api_check:
     uses: ./.github/workflows/_check-api.yml
@@ -14,11 +22,8 @@ jobs:
 
   pagination_check:
     uses: ./.github/workflows/_check-pagination.yml
-    secrets: inherit
 
   deploy_lambdas:
-    # Note: AWS_ACCOUNT_ID must be set as a repository secret.
-    # It is used to construct Lambda IAM role ARNs (e.g. arn:aws:iam::<account-id>:role/...).
     needs: [api_check, web_check, pagination_check]
     runs-on: ubuntu-latest
     steps:
@@ -41,13 +46,17 @@ jobs:
         working-directory: ./api
         run: cargo lambda build --release --bin lambda
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Function exists (Terraform-managed with its execution role); update code
+      # only — no --role (avoids needing iam:PassRole).
       - name: Deploy seslogin-preprod-api
         working-directory: ./api
-        run: cargo lambda deploy --binary-name lambda --role arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/seslogin-preprod-api-lambda-role seslogin-preprod-api
-        env:
-          AWS_DEFAULT_REGION: ap-southeast-2
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: cargo lambda deploy --binary-name lambda seslogin-preprod-api
 
   deploy_web:
     needs: deploy_lambdas
@@ -71,22 +80,20 @@ jobs:
       - name: Build web app
         working-directory: ./web
         env:
-          VITE_API_URL: ${{ vars.PREPROD_API_URL }}
+          VITE_API_URL: https://ykfbjqjwa2whdhrmilwjse6ape0smjrb.lambda-url.ap-southeast-2.on.aws/
           VITE_BEACON_URL: ${{ vars.BEACON_URL }}
           VITE_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
           VITE_CLIENT_VERSION: ${{ github.sha }}
         run: npm run build
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Deploy to S3
-        run: aws s3 sync --follow-symlinks --delete ./web/dist s3://preprod.seslogin.com
-        env:
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: "ap-southeast-2"
+        run: aws s3 sync --follow-symlinks --delete ./web/dist s3://seslogin-preprod-web-641079927221
 
       - name: Invalidate CloudFront
-        env:
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
-        run: aws cloudfront create-invalidation --distribution-id "${{ vars.PREPROD_CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
+        run: aws cloudfront create-invalidation --distribution-id "E1J1EQQKDJODOC" --paths "/*"

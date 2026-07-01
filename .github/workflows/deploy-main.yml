@@ -5,6 +5,14 @@ on:
     branches:
       - main
 
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-2
+  DEPLOY_ROLE_ARN: arn:aws:iam::641079927221:role/seslogin-github-deploy
+
 jobs:
   api_check:
     uses: ./.github/workflows/_check-api.yml
@@ -14,11 +22,8 @@ jobs:
 
   pagination_check:
     uses: ./.github/workflows/_check-pagination.yml
-    secrets: inherit
 
   deploy_lambdas:
-    # Note: AWS_ACCOUNT_ID must be set as a repository secret.
-    # It is used to construct Lambda IAM role ARNs (e.g. arn:aws:iam::<account-id>:role/...).
     needs: [api_check, web_check, pagination_check]
     runs-on: ubuntu-latest
     steps:
@@ -41,69 +46,28 @@ jobs:
         working-directory: ./api
         run: cargo lambda build --release --bin lambda --bin sync-members-lambda --bin dispatcher-lambda --bin checker-lambda --bin nitc-export-lambda --bin healthcheck-lambda --bin activity-summary-lambda --bin sync-locations-lambda
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Functions exist (Terraform-managed with their execution roles); update
+      # code only — no --role (avoids needing iam:PassRole).
       - name: Deploy seslogin-test-api
         working-directory: ./api
-        run: cargo lambda deploy --binary-name lambda --role arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/seslogin-test-api-lambda-role seslogin-test-api
-        env:
-          AWS_DEFAULT_REGION: ap-southeast-2
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: cargo lambda deploy --binary-name lambda seslogin-test-api
 
-      - name: Deploy seslogin-sync-members
+      - name: Deploy worker lambdas
         working-directory: ./api
-        run: cargo lambda deploy --binary-name sync-members-lambda --role arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/seslogin-sync-lambda-role seslogin-sync-members
-        env:
-          AWS_DEFAULT_REGION: ap-southeast-2
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-      - name: Deploy seslogin-dispatcher
-        working-directory: ./api
-        run: cargo lambda deploy --binary-name dispatcher-lambda --role arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/seslogin-dispatcher-lambda-role seslogin-dispatcher
-        env:
-          AWS_DEFAULT_REGION: ap-southeast-2
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-      - name: Deploy seslogin-checker
-        working-directory: ./api
-        run: cargo lambda deploy --binary-name checker-lambda --role arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/seslogin-checker-lambda-role seslogin-checker
-        env:
-          AWS_DEFAULT_REGION: ap-southeast-2
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-      - name: Deploy seslogin-nitc-export
-        working-directory: ./api
-        run: cargo lambda deploy --binary-name nitc-export-lambda --role arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/seslogin-nitc-export-lambda-role seslogin-nitc-export
-        env:
-          AWS_DEFAULT_REGION: ap-southeast-2
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-      - name: Deploy seslogin-healthcheck
-        working-directory: ./api
-        run: cargo lambda deploy --binary-name healthcheck-lambda --role arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/seslogin-healthcheck-lambda-role seslogin-healthcheck
-        env:
-          AWS_DEFAULT_REGION: ap-southeast-2
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-      - name: Deploy seslogin-activity-summary
-        working-directory: ./api
-        run: cargo lambda deploy --binary-name activity-summary-lambda --role arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/seslogin-activity-summary-lambda-role seslogin-activity-summary
-        env:
-          AWS_DEFAULT_REGION: ap-southeast-2
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-      - name: Deploy seslogin-sync-locations
-        working-directory: ./api
-        run: cargo lambda deploy --binary-name sync-locations-lambda --role arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/seslogin-sync-locations-lambda-role seslogin-sync-locations
-        env:
-          AWS_DEFAULT_REGION: ap-southeast-2
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          cargo lambda deploy --binary-name sync-members-lambda     seslogin-sync-members
+          cargo lambda deploy --binary-name dispatcher-lambda       seslogin-dispatcher
+          cargo lambda deploy --binary-name checker-lambda          seslogin-checker
+          cargo lambda deploy --binary-name nitc-export-lambda      seslogin-nitc-export
+          cargo lambda deploy --binary-name healthcheck-lambda      seslogin-healthcheck
+          cargo lambda deploy --binary-name activity-summary-lambda seslogin-activity-summary
+          cargo lambda deploy --binary-name sync-locations-lambda   seslogin-sync-locations
 
   deploy_web:
     needs: deploy_lambdas
@@ -127,22 +91,20 @@ jobs:
       - name: Build web app
         working-directory: ./web
         env:
-          VITE_API_URL: ${{ vars.TEST_API_URL }}
+          VITE_API_URL: https://rkrle4ilsgx6btclhy66ziufgu0yjgyr.lambda-url.ap-southeast-2.on.aws/
           VITE_BEACON_URL: ${{ vars.BEACON_URL }}
           VITE_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
           VITE_CLIENT_VERSION: ${{ github.sha }}
         run: npm run build
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Deploy to S3
-        run: aws s3 sync --follow-symlinks --delete ./web/dist s3://test.seslogin.com
-        env:
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: "ap-southeast-2"
+        run: aws s3 sync --follow-symlinks --delete ./web/dist s3://seslogin-test-web-641079927221
 
       - name: Invalidate CloudFront
-        env:
-          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
-        run: aws cloudfront create-invalidation --distribution-id "${{ vars.TEST_CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
+        run: aws cloudfront create-invalidation --distribution-id "E3HQAX3Z0AQJDM" --paths "/*"

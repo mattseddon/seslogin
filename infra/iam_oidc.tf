@@ -92,6 +92,22 @@ resource "aws_iam_role_policy" "github_cloudfront" {
   })
 }
 
+# Read-only access to the pagination fixture table so the CI pagination
+# integration test (_check-pagination.yml) can run under OIDC. The test server
+# runs read-only against this single disposable table only.
+resource "aws_iam_role_policy" "github_pagination_test" {
+  name = "seslogin-github-pagination-test"
+  role = aws_iam_role.github_deploy.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:Query", "dynamodb:Scan", "dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:DescribeTable"]
+      Resource = [aws_dynamodb_table.test_pagination.arn, "${aws_dynamodb_table.test_pagination.arn}/index/*"]
+    }]
+  })
+}
+
 output "github_deploy_role_arn" {
   description = "Set as the AWS_DEPLOY_ROLE_ARN GitHub repo variable for the OIDC workflows."
   value       = aws_iam_role.github_deploy.arn
