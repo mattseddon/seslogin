@@ -23,7 +23,7 @@ variable "aws_account_id" {
 variable "aws_profile" {
   description = "AWS CLI/SSO profile Terraform uses for all providers"
   type        = string
-  default     = "seslogin-new"
+  default     = "seslogin"
 }
 
 # Background workers (member sync, dispatcher, checker, nitc-export, healthcheck,

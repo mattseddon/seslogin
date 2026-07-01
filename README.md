@@ -19,7 +19,7 @@ SES Activity is a web app for tracking volunteer attendance with as little frict
 
 - Rust (stable, via [rustup](https://rustup.rs))
 - Node.js >= 22
-- AWS credentials configured (for DynamoDB)
+- AWS credentials configured (for DynamoDB). The deployment/Terraform account (`641079927221`) is the `seslogin` profile — an IAM Identity Center (SSO) profile; run `aws sso login --profile seslogin`.
 
 ### 1. Configure secrets
 

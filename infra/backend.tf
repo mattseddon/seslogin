@@ -4,6 +4,6 @@ terraform {
     key     = "seslogin/terraform.tfstate"
     region  = "ap-southeast-2"
     encrypt = true
-    profile = "seslogin-new"
+    profile = "seslogin"
   }
 }

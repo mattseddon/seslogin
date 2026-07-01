@@ -75,7 +75,7 @@ cd infra && terraform plan   # Preview infra changes
 cd infra && terraform apply  # Apply infra changes
 ```
 
-Terraform uses the `seslogin-new` AWS profile by default (var `aws_profile`) — an IAM Identity Center (SSO) profile for account `641079927221`. Run `aws sso login --profile seslogin-new` first. Admin access is the `SesloginAdmin` permission set (PowerUserAccess + `iam:*`); there is no separate `seslogin-terraform` managed policy.
+Terraform uses the `seslogin` AWS profile by default (var `aws_profile`) — an IAM Identity Center (SSO) profile for account `641079927221`. Run `aws sso login --profile seslogin` first. Admin access is the `SesloginAdmin` permission set (PowerUserAccess + `iam:*`); there is no separate `seslogin-terraform` managed policy. (The migration's old account `303170530482` is the `sdunster` profile.)
 
 ## Architecture
 

@@ -16,9 +16,9 @@ Empties the table, then writes exactly 62 rows:
   even:     string "y" when `number` is even, absent otherwise
   mod5:     number % 5
 
-Reads DB_PREFIX from ../.env. Uses the `seslogin-new` AWS profile in
-ap-southeast-2 by default (override with --profile), matching the Terraform
-provider in infra/main.tf.
+Reads DB_PREFIX from ../.env. Uses the `seslogin` AWS profile in ap-southeast-2
+by default (override with --profile), matching the Terraform provider in
+infra/main.tf.
 """
 
 import argparse
@@ -31,7 +31,7 @@ from dotenv import load_dotenv
 from nanoid import generate
 
 REGION = "ap-southeast-2"
-PROFILE = "seslogin-new"
+PROFILE = "seslogin"
 ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 ID_SIZE = 4
 
