@@ -137,6 +137,15 @@ enum SessionCmd {
         #[arg(long)]
         location: Option<String>,
     },
+    /// List kiosks whose sessions checked in within the last N minutes.
+    /// Without --location, scans across all enabled locations.
+    ListActive {
+        /// Only show kiosks last seen within this many minutes.
+        #[arg(long, default_value_t = 10)]
+        minutes: u64,
+        #[arg(long)]
+        location: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -908,6 +917,37 @@ async fn run(db: &impl Handler, object: Object) -> Result<()> {
                     .collect();
                 print_table(
                     &["id", "name", "location", "client_version", "last_contact"],
+                    &rows,
+                );
+            }
+            SessionCmd::ListActive { minutes, location } => {
+                let cutoff = now_secs().saturating_sub(minutes * 60);
+                let mut sessions = list_sessions(db, location).await?;
+                // list_sessions sorts by last_contact descending; keep only kiosks
+                // that have checked in within the window.
+                sessions.retain(|s| s.last_contact.is_some_and(|t| t >= cutoff));
+
+                let loc_ids: Vec<String> = sessions.iter().map(|s| s.location_id.clone()).collect();
+                let locs = location_names(db, &loc_ids).await;
+                let rows: Vec<Vec<String>> = sessions
+                    .iter()
+                    .map(|s| {
+                        vec![
+                            s.id.clone(),
+                            locs.get(&s.location_id)
+                                .cloned()
+                                .unwrap_or_else(|| s.location_id.clone()),
+                            s.name.clone(),
+                            opt_str(&s.client_version),
+                            s.last_contact
+                                .map(relative)
+                                .unwrap_or_else(|| "never".to_string()),
+                        ]
+                    })
+                    .collect();
+                println!("Kiosks active in the last {} minute(s):\n", minutes);
+                print_table(
+                    &["id", "location", "kiosk", "client_version", "last_contact"],
                     &rows,
                 );
             }
