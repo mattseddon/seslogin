@@ -162,6 +162,11 @@ enum PeriodCmd {
         #[arg(long)]
         active: bool,
     },
+    /// List the 5 most recent periods per enabled location within the last N minutes.
+    ListRecent {
+        #[arg(long, default_value_t = 60)]
+        minutes: u64,
+    },
     /// List periods for a person.
     ListForPerson {
         #[arg(long)]
@@ -981,6 +986,31 @@ async fn run(db: &impl Handler, object: Object) -> Result<()> {
                     )
                     .await?;
                 print_period_table(db, &periods).await;
+            }
+            PeriodCmd::ListRecent { minutes } => {
+                let now = now_secs();
+                let cutoff = now.saturating_sub(minutes * 60);
+                let locations = db.list_locations(ListLocationsFilter::EnabledOnly).await?;
+                for loc in &locations {
+                    let periods = db
+                        .list_periods_for_location(
+                            &loc.id,
+                            false,
+                            Some((cutoff, now)),
+                            ListPeriodsPage {
+                                after: None,
+                                before: None,
+                                limit: 5,
+                                descending: true,
+                            },
+                        )
+                        .await?;
+                    if periods.is_empty() {
+                        continue;
+                    }
+                    println!("\n{}", loc.name);
+                    print_period_table(db, &periods).await;
+                }
             }
             PeriodCmd::ListForPerson { person } => {
                 let periods = db

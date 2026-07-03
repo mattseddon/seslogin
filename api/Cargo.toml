@@ -36,10 +36,6 @@ name = "cli"
 path = "src/bin/cli.rs"
 
 [[bin]]
-name = "list-recent-periods"
-path = "src/bin/list-recent-periods.rs"
-
-[[bin]]
 name = "nitc-export"
 path = "src/bin/nitc-export.rs"
 
