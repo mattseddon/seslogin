@@ -8,6 +8,7 @@
     "esbenp.prettier-vscode",
     "meta.relay",
     "rust-lang.rust-analyzer",
-    "ms-vscode.makefile-tools"
+    "ms-vscode.makefile-tools",
+    "bradlc.vscode-tailwindcss"
   ]
 }
