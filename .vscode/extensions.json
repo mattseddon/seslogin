@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "github.vscode-github-actions",
+    "graphql.vscode-graphql-syntax",
+    "ms-python.black-formatter",
+    "ms-python.isort",
+    "esbenp.prettier-vscode",
+    "meta.relay",
+    "rust-lang.rust-analyzer",
+    "ms-vscode.makefile-tools"
+  ]
+}
